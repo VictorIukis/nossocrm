@@ -78,3 +78,21 @@ Configuracoes -> Integracoes. O caminho mais curto para o n8n:
 Isso importa: o n8n nao precisa guardar id de deal em lugar nenhum, o que
 elimina a classe de bug que ja custou caro na agenda (estado guardado em um
 no e perdido no proximo).
+
+## O wizard pede menos coisa do que o README diz
+
+O README manda copiar service_role, anon key e a string do pooler na mao. O
+codigo nao faz isso. Ele pede so:
+
+1. **Token da Vercel** — vercel.com/account/tokens, "Create Token"
+2. **Personal access token do Supabase** (`sbp_...`) —
+   supabase.com/dashboard/account/tokens
+3. **Nome, e-mail e senha** do administrador
+
+Com o token do Supabase ele lista os projetos da conta (vai aparecer
+`Bright CRM`), busca as chaves sozinho pela Management API, e — o detalhe que
+resolve tudo — **cria um role de login temporario no banco** em vez de precisar
+da senha do projeto. Por isso nao ha nada para copiar do painel do Supabase, e
+nenhuma senha precisa passar por terceiros.
+
+Depois ele grava as variaveis de ambiente na Vercel e dispara o redeploy.
