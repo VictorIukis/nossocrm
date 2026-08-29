@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { Client } from 'pg';
 
-const SCHEMA_PATH = path.resolve(process.cwd(), 'supabase/migrations/20251201000000_schema_init.sql');
+const MIGRATIONS_DIR = path.resolve(process.cwd(), 'supabase/migrations');
 
 function needsSsl(connectionString: string) {
   return !/sslmode=disable/i.test(connectionString);
@@ -102,10 +102,57 @@ async function waitForStorageReady(client: Client, opts?: { timeoutMs?: number; 
 }
 
 /**
+ * Lê a pasta de migrations em ordem de versão.
+ *
+ * A ordem é a do nome do arquivo (timestamp na frente), que é a mesma
+ * convenção do CLI do Supabase. Ordenar por string aqui é correto porque
+ * o timestamp tem largura fixa.
+ */
+function listarMigrations(): { version: string; name: string; sql: string }[] {
+  return fs
+    .readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .map((f) => ({
+      // 20251201000000_schema_init.sql -> version 20251201000000
+      version: f.split('_')[0],
+      name: f,
+      sql: fs.readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8'),
+    }));
+}
+
+/**
+ * Registra o que já rodou na mesma tabela que o CLI do Supabase usa.
+ *
+ * Sem isso a instalação não é retomável: se a décima migration falhar, rodar
+ * de novo tentaria recriar as nove primeiras e morreria em "already exists".
+ * Usar a tabela oficial também deixa um `supabase db push` futuro consistente.
+ */
+async function jaAplicadas(client: Client): Promise<Set<string>> {
+  await client.query('create schema if not exists supabase_migrations');
+  await client.query(
+    `create table if not exists supabase_migrations.schema_migrations (
+       version text primary key,
+       statements text[],
+       name text
+     )`
+  );
+  const r = await client.query<{ version: string }>(
+    'select version from supabase_migrations.schema_migrations'
+  );
+  return new Set(r.rows.map((x) => x.version));
+}
+
+/**
  * Função pública `runSchemaMigration` do projeto.
+ *
+ * Aplica TODAS as migrations da pasta, e não só a inicial. O instalador
+ * original rodava apenas 20251201000000_schema_init.sql, que está congelado
+ * em dezembro: um CRM instalado por ele nascia sem o sistema de mensagens,
+ * sem ai_pending_evaluations e sem board_ai_config, e as telas dessas partes
+ * quebravam no primeiro acesso.
  */
 export async function runSchemaMigration(dbUrl: string) {
-  const schemaSql = fs.readFileSync(SCHEMA_PATH, 'utf8');
   const normalizedDbUrl = stripSslModeParam(dbUrl);
 
   const createClient = () =>
@@ -121,7 +168,33 @@ export async function runSchemaMigration(dbUrl: string) {
   try {
     // Never "skip" Storage. We wait until it's ready, then run migrations.
     await waitForStorageReady(client);
-    await client.query(schemaSql);
+
+    const feitas = await jaAplicadas(client);
+    const pendentes = listarMigrations().filter((m) => !feitas.has(m.version));
+
+    console.log(
+      `[migrations] ${pendentes.length} pendente(s) de ${listarMigrations().length}`
+    );
+
+    for (const m of pendentes) {
+      // Cada migration é uma transação própria. Se uma quebrar, as anteriores
+      // ficam gravadas e a reexecução continua de onde parou, em vez de
+      // recomeçar do zero e bater em "already exists".
+      await client.query('begin');
+      try {
+        await client.query(m.sql);
+        await client.query(
+          'insert into supabase_migrations.schema_migrations (version, name) values ($1, $2) on conflict (version) do nothing',
+          [m.version, m.name]
+        );
+        await client.query('commit');
+        console.log(`[migrations] ok ${m.name}`);
+      } catch (err) {
+        await client.query('rollback').catch(() => undefined);
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`Falha na migration ${m.name}: ${msg}`);
+      }
+    }
   } finally {
     await client.end();
   }

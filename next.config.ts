@@ -29,6 +29,12 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: repoRoot,
   },
+  // O instalador le a pasta de migrations em disco em tempo de execucao. O
+  // tracing do Next so inclui arquivos que ele ve num import estatico, entao
+  // sem isto a funcao sobe sem os .sql e a instalacao morre em ENOENT.
+  outputFileTracingIncludes: {
+    '/api/installer/run-stream': ['./supabase/migrations/**'],
+  },
   async rewrites() {
     return [{ source: '/api/chat', destination: '/api/ai/chat' }];
   },
