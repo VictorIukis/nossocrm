@@ -15,8 +15,46 @@ export default function LoginPage() {
     const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    // Recuperacao de senha. Antes disto o app so tinha signInWithPassword, entao
+    // quem perdesse a senha ficava trancado do lado de fora sem nenhuma saida
+    // pela interface: a unica alternativa era mexer no painel do Supabase.
+    const [aviso, setAviso] = useState<string | null>(null)
+    const [enviando, setEnviando] = useState(false)
     const router = useRouter()
     const supabase = createClient()
+
+    const recuperarSenha = async () => {
+        setError(null)
+        setAviso(null)
+
+        // Sem e-mail nao ha para onde mandar, e o Supabase aceitaria a chamada
+        // em silencio.
+        if (!email.trim()) {
+            setError('Preencha o e-mail acima para receber o link de recuperacao.')
+            return
+        }
+
+        setEnviando(true)
+        try {
+            if (!supabase) {
+                throw new Error('Supabase nao configurado. Configure as variaveis de ambiente.')
+            }
+
+            await supabase.auth.resetPasswordForEmail(email.trim(), {
+                redirectTo: `${window.location.origin}/profile`,
+            })
+
+            // Mensagem igual existindo ou nao a conta, de proposito: dizer "esse
+            // e-mail nao existe" entrega para qualquer visitante quem tem conta
+            // aqui dentro.
+            setAviso('Se existir uma conta com esse e-mail, o link de recuperacao chega em instantes. '
+                   + 'Ao abrir o link voce entra e pode trocar a senha em Perfil.')
+        } catch (err) {
+            setError(getErrorMessage(err))
+        } finally {
+            setEnviando(false)
+        }
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -109,6 +147,27 @@ export default function LoginPage() {
                                 />
                             </div>
                         </div>
+
+                        <div className="flex justify-end -mt-4">
+                            <button
+                                type="button"
+                                onClick={recuperarSenha}
+                                disabled={enviando}
+                                className="text-sm text-primary-600 dark:text-primary-400 hover:underline disabled:opacity-50"
+                            >
+                                {enviando ? 'Enviando...' : 'Esqueci minha senha'}
+                            </button>
+                        </div>
+
+                        {aviso && (
+                            <div
+                                role="status"
+                                aria-live="polite"
+                                className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-sm text-center"
+                            >
+                                {aviso}
+                            </div>
+                        )}
 
                         {error && (
                             <div
