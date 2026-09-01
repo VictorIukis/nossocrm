@@ -868,7 +868,11 @@ export default function InstallWizardPage() {
     setSupabaseProvisioning(false);
     setSupabaseUiStep('done');
     // Valores explicitos: os setState acima ainda nao valem nesta passagem.
-    await resolveKeys('manual', { ref: projectRef, url: `https://${projectRef}.supabase.co` });
+    await resolveKeys('manual', {
+      ref: projectRef,
+      url: `https://${projectRef}.supabase.co`,
+      existente: true,
+    });
   };
 
   const resolveKeys = async (
@@ -877,7 +881,7 @@ export default function InstallWizardPage() {
     // setState no React nao vale na mesma passagem: quem grava o ref e chama
     // esta funcao em seguida ainda le o valor ANTIGO, e o resolve falha com
     // "Informe o PAT e selecione um projeto" mesmo com tudo preenchido na tela.
-    alvo?: { ref?: string; url?: string }
+    alvo?: { ref?: string; url?: string; existente?: boolean }
   ) => {
     if (supabaseResolving) return;
     const pat = supabaseAccessToken.trim();
@@ -913,7 +917,15 @@ export default function InstallWizardPage() {
       if (data?.dbUrl) {
         try {
           const resolvedRef = String(data?.projectRef || ref || '').trim();
-          const haveCreatePass = Boolean(supabaseCreateDbPass && supabaseCreateDbPass.length >= 12);
+          // supabaseCreateDbPass e gerado no carregamento da pagina, sempre, mesmo
+          // quando nenhum projeto vai ser criado. Para um projeto RECEM-CRIADO ela e
+          // a senha real do banco; para um projeto que ja existia e uma senha
+          // inventada, e usa-la faz a conexao morrer em
+          // "password authentication failed for user postgres" no meio das migrations.
+          // Por isso ela so vale quando este fluxo criou o projeto.
+          const haveCreatePass = Boolean(
+            !alvo?.existente && supabaseCreateDbPass && supabaseCreateDbPass.length >= 12
+          );
           const u = new URL(String(data.dbUrl));
           const hostPort = u.host;
           const dbName = u.pathname?.replace(/^\//, '') || 'postgres';
