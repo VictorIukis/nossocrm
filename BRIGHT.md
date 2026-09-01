@@ -55,10 +55,46 @@ inclui arquivo que ele ve num import estatico, entao sem
 `outputFileTracingIncludes` a funcao sobe sem os .sql e a instalacao morre em
 ENOENT. Incluido `./supabase/migrations/**` na rota do instalador.
 
+## Schema aplicado (01/set/2026)
+
+As 46 migrations foram aplicadas em ordem no banco `Bright CRM`, mais uma 47a de
+correcao de seguranca. Estado conferido: 56 tabelas, 109 politicas de RLS, 2 jobs
+de pg_cron agendados, e `supabase_migrations.schema_migrations` com o historico
+completo, que e a mesma tabela que o CLI do Supabase usa.
+
+Consequencia pratica: o wizard vai PULAR o passo de migrations sozinho (o
+health-check dele detecta o schema aplicado) e cuidar so das variaveis de
+ambiente e do usuario administrador.
+
+### Quatro bugs que so aparecem quando a cadeia roda inteira
+
+Nenhum deles jamais foi exercitado no upstream, porque o instalador de la
+aplicava so a migration inicial. Todos corrigidos e commitados:
+
+| migration | o que quebrava |
+|---|---|
+| `20260223000002` | `CREATE OR REPLACE` nao troca coluna de OUT; `search_messages` renomeia uma. Falta `DROP` antes |
+| `20260224000000` | cria indice em `ai_decisions.organization_id` e `messaging_webhook_events.organization_id`, colunas que a cadeia nunca cria e o codigo nao usa |
+| `20260409120000` | mesmo caso do primeiro, em `expire_old_pending_advances` |
+| `20260409120000` | o bloco do pg_cron captura `undefined_object`, mas schema ausente levanta `invalid_schema_name`, entao a migration morria em vez de seguir sem os jobs |
+
+### Duas falhas de isolamento, achadas pelo auditor do Supabase
+
+Corrigidas na migration `20260901180000`:
+
+- **`vw_hitl_pending_by_age` vazava entre organizacoes.** Criada sem
+  `security_invoker`, rodava com privilegio do dono e ignorava o RLS: qualquer
+  usuario autenticado via a contagem de pendencias de todas as organizacoes.
+- **O papel `anon` executava as funcoes SECURITY DEFINER.** Confirmado de fora:
+  `trigger_hitl_alerts` respondia 200 com dados sem nenhum login. Pegadinha que
+  quase passou: revogar de `anon` nao adianta, porque a concessao e para `PUBLIC`
+  e `anon` herda dela. Tem que ser `REVOKE FROM PUBLIC` com `GRANT` de volta para
+  `authenticated` e `service_role`.
+
 ## Falta fazer
 
-1. Rodar o wizard em /install (precisa de token da Vercel, service_role do
-   Supabase, string do pooler e o e-mail/senha do admin — tudo do Victor)
+1. Rodar o wizard em /install (token da Vercel, token do Supabase `sbp_...` e o
+   e-mail/senha do admin — tudo do Victor)
 2. Desligar o instalador depois: `INSTALLER_ENABLED=false` na Vercel
 3. Ligar na Sofia (ver secao abaixo)
 
