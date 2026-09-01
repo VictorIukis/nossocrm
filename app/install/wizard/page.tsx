@@ -867,14 +867,22 @@ export default function InstallWizardPage() {
     // o projeto ja esta de pe.
     setSupabaseProvisioning(false);
     setSupabaseUiStep('done');
-    await resolveKeys('manual');
+    // Valores explicitos: os setState acima ainda nao valem nesta passagem.
+    await resolveKeys('manual', { ref: projectRef, url: `https://${projectRef}.supabase.co` });
   };
 
-  const resolveKeys = async (mode: 'auto' | 'manual' = 'manual') => {
+  const resolveKeys = async (
+    mode: 'auto' | 'manual' = 'manual',
+    // Permite passar projeto explicitamente em vez de ler do estado.
+    // setState no React nao vale na mesma passagem: quem grava o ref e chama
+    // esta funcao em seguida ainda le o valor ANTIGO, e o resolve falha com
+    // "Informe o PAT e selecione um projeto" mesmo com tudo preenchido na tela.
+    alvo?: { ref?: string; url?: string }
+  ) => {
     if (supabaseResolving) return;
     const pat = supabaseAccessToken.trim();
-    const url = supabaseUrl.trim();
-    const ref = supabaseProjectRef.trim() || inferProjectRef(url);
+    const url = (alvo?.url ?? supabaseUrl).trim();
+    const ref = (alvo?.ref ?? supabaseProjectRef).trim() || inferProjectRef(url);
     
     if (!pat || (!url && !ref)) {
       if (mode === 'manual') setSupabaseResolveError('Informe o PAT e selecione um projeto.');
