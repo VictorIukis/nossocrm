@@ -7,8 +7,11 @@
 -- RLS applies, but explicit revoke prevents anon access attempts).
 -- =============================================================================
 
-REVOKE ALL ON FUNCTION public.search_messages(UUID, TEXT, INT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.search_messages(UUID, TEXT, INT) TO authenticated;
+-- O rename de external_message_id para external_id muda uma coluna de OUT, e
+-- CREATE OR REPLACE nao consegue fazer isso: o Postgres para com
+-- "cannot change return type of existing function". Precisa DROP antes.
+-- Como o DROP leva junto as permissoes, o REVOKE/GRANT desceu para o fim.
+DROP FUNCTION IF EXISTS public.search_messages(UUID, TEXT, INT);
 
 CREATE OR REPLACE FUNCTION public.search_messages(
   p_conversation_id UUID,
@@ -55,3 +58,6 @@ BEGIN
   LIMIT LEAST(p_limit, 100);
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.search_messages(UUID, TEXT, INT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.search_messages(UUID, TEXT, INT) TO authenticated;
