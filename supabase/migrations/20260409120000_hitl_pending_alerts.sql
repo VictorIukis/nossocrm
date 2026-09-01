@@ -190,9 +190,19 @@ COMMENT ON FUNCTION public.expire_old_pending_advances() IS
 -- - Trigger alerts a cada 6 horas
 -- - Expire old records a cada 12 horas
 
--- Verificar se pg_cron está disponível
-DO $$
+-- A intencao aqui sempre foi "agenda se der", mas o EXCEPTION pegava a classe
+-- errada: sem a extensao instalada o schema cron nao existe, e schema ausente
+-- levanta invalid_schema_name (3F000), nao undefined_object. Resultado: num
+-- banco novo a migration inteira morria aqui em vez de seguir sem os jobs.
+DO $cron$
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    RAISE NOTICE 'pg_cron nao instalado. Os jobs de HITL nao serao agendados; '
+                 'rode trigger_hitl_alerts() e expire_old_pending_advances() '
+                 'por fora, ou instale a extensao e reaplique esta migration.';
+    RETURN;
+  END IF;
+
   -- Job 1: trigger_hitl_alerts a cada 6 horas (00:00, 06:00, 12:00, 18:00 UTC)
   PERFORM cron.schedule(
     'hitl-pending-alerts',
@@ -208,10 +218,10 @@ BEGIN
     'SELECT public.expire_old_pending_advances();'
   );
   RAISE NOTICE 'Created cron job: expire-hitl-pending (every 12 hours)';
-EXCEPTION WHEN undefined_object THEN
-  RAISE NOTICE 'pg_cron extension not available. Jobs must be triggered manually.
-    Call trigger_hitl_alerts() and expire_old_pending_advances() from application code.';
-END $$;
+EXCEPTION WHEN undefined_object OR invalid_schema_name OR insufficient_privilege THEN
+  RAISE NOTICE 'pg_cron indisponivel para este papel. Jobs nao agendados.';
+END
+$cron$;
 
 -- ============================================================================
 -- 6. RLS Policies for deal_activities (hitl_alert type)
