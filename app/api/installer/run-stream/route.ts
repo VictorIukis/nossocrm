@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { runSchemaMigration } from '@/lib/installer/migrations';
+import { configurarUrlsDeAutenticacao } from '@/lib/installer/edgeFunctions';
 import { bootstrapInstance } from '@/lib/installer/supabase';
 import { triggerProjectRedeploy, upsertProjectEnvs, waitForVercelDeploymentReady } from '@/lib/installer/vercel';
 import { validateInstallerPassword } from '@/lib/installer/passwordPolicy';
@@ -404,6 +405,27 @@ export async function POST(req: Request) {
         ],
         vercel.teamId || undefined
       );
+
+      // Aponta o Site URL do Supabase para onde o app roda de verdade. Num
+      // projeto novo esses campos nascem em http://localhost:3000, e ai todo
+      // link por e-mail (recuperacao de senha, link magico, convite) leva a
+      // pessoa para a maquina dela em vez da instancia. Como o login por senha
+      // nao usa redirecionamento, o defeito so aparece no pior momento: quando
+      // alguem perde a senha e descobre que nao ha volta.
+      if (resolvedAccessToken && resolvedProjectRef) {
+        const enderecoDoApp = new URL(req.url).origin;
+        const urls = await configurarUrlsDeAutenticacao({
+          accessToken: resolvedAccessToken,
+          projectRef: resolvedProjectRef,
+          siteUrl: enderecoDoApp,
+        });
+        // Nao aborta a instalacao por causa disto: sem o Site URL o CRM funciona,
+        // so a recuperacao por e-mail fica quebrada. Mas registra alto, porque
+        // falhar em silencio aqui e o que cria a armadilha la na frente.
+        if (!urls.ok) {
+          console.warn('[installer] nao consegui configurar o Site URL do Supabase: ' + urls.error);
+        }
+      }
 
       await sendPhase('setup_envs'); // Complete
 

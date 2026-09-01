@@ -935,3 +935,42 @@ export async function deployAllSupabaseEdgeFunctions(params: {
   return results.filter(Boolean);
 }
 
+
+/**
+ * Aponta o Site URL e a lista de redirecionamentos do Supabase para o endereco
+ * onde o app realmente roda.
+ *
+ * Existe porque o instalador nao mexia nisso, e num projeto Supabase novo esses
+ * campos nascem valendo `http://localhost:3000`. O login por senha nao usa
+ * redirecionamento e por isso funcionava, mas TUDO que depende de link por
+ * e-mail apontava para a maquina local de quem clicasse: recuperacao de senha,
+ * link magico, convite de usuario. Na pratica, perder a senha do administrador
+ * deixava a instancia sem saida pela interface.
+ */
+export async function configurarUrlsDeAutenticacao(params: {
+  accessToken: string;
+  projectRef: string;
+  siteUrl: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const base = params.siteUrl.replace(/\/+$/, '');
+
+  const res = await supabaseManagementFetch(
+    `/v1/projects/${encodeURIComponent(params.projectRef)}/config/auth`,
+    params.accessToken,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        site_url: base,
+        // O Supabase so redireciona para endereco que esteja nesta lista. Sem a
+        // entrada com curinga, um link de recuperacao que carregue `?next=` ou
+        // qualquer sufixo e recusado em silencio e a pessoa cai na home.
+        uri_allow_list: [base, `${base}/**`].join(','),
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    return { ok: false, error: res.error };
+  }
+  return { ok: true };
+}
