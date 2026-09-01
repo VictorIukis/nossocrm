@@ -150,6 +150,13 @@ COMMENT ON FUNCTION public.trigger_hitl_alerts() IS
 -- ============================================================================
 -- Marca como 'expired' as pending_advances além de 24h
 
+-- A funcao ja existe retornando void desde 20260207100000, e aqui ela passa a
+-- retornar uma tabela. CREATE OR REPLACE nao troca tipo de retorno, entao um
+-- banco novo para aqui com "cannot change return type of existing function".
+-- O DROP leva junto o REVOKE/GRANT que 20260223000001 aplicou, entao eles sao
+-- refeitos logo depois do CREATE.
+DROP FUNCTION IF EXISTS public.expire_old_pending_advances();
+
 CREATE OR REPLACE FUNCTION public.expire_old_pending_advances()
   RETURNS TABLE(expired_count BIGINT) AS $$
 DECLARE
@@ -166,6 +173,11 @@ BEGIN
   RETURN QUERY SELECT v_expired_count;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Repoe o que o DROP acima levou junto (ver 20260223000001_fix_rpc_anon_access).
+REVOKE ALL ON FUNCTION public.expire_old_pending_advances() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.expire_old_pending_advances() FROM anon;
+GRANT EXECUTE ON FUNCTION public.expire_old_pending_advances() TO service_role;
 
 COMMENT ON FUNCTION public.expire_old_pending_advances() IS
   'Expira ai_pending_stage_advances que ultrapassaram o tempo limite.
