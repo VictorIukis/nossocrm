@@ -839,6 +839,31 @@ export default function InstallWizardPage() {
     }
   };
   
+  /**
+   * Usa um projeto Supabase que ja existe, em vez de criar mais um.
+   *
+   * O fluxo original so sabia CRIAR: `decideAndCreate` termina sempre em
+   * `createProjectInOrg`, e nao havia nenhuma tela para apontar um projeto que
+   * a pessoa ja tinha. Na pratica isso fazia o instalador ignorar um banco
+   * pronto e criar um duplicado, e no plano Free (limite de 2 projetos) o
+   * usuario ficava preso escolhendo qual projeto pausar para caber mais um que
+   * ele nem queria.
+   *
+   * A parte dificil ja existia: `resolveKeys` pega chave publicavel, chave
+   * secreta e string do banco a partir do PAT mais o ref do projeto. So faltava
+   * deixar escolher o ref.
+   */
+  const usarProjetoExistente = async (projectRef: string) => {
+    setSupabaseCreateError(null);
+    setSupabaseResolveError(null);
+    setSupabaseProjectRef(projectRef);
+    // Vai direto para a tela de "resolvendo chaves"; nao ha nada a provisionar,
+    // o projeto ja esta de pe.
+    setSupabaseProvisioning(false);
+    setSupabaseUiStep('done');
+    await resolveKeys('manual');
+  };
+
   const resolveKeys = async (mode: 'auto' | 'manual' = 'manual') => {
     if (supabaseResolving) return;
     const pat = supabaseAccessToken.trim();
@@ -1448,6 +1473,32 @@ export default function InstallWizardPage() {
                               </button>
                             </div>
                           ))}
+                        </div>
+
+                        <div className="mb-6">
+                          <div className="text-center text-slate-400 text-sm mb-3">
+                            Ou use um projeto que você já tem, sem pausar nada:
+                          </div>
+                          <div className="space-y-3">
+                            {allFreeActiveProjects.map((p) => (
+                              <div key={'usar-' + p.ref} className="flex items-center justify-between gap-4 bg-white/5 border border-white/10 rounded-xl p-4">
+                                <div className="min-w-0">
+                                  <div className="text-white font-medium truncate">{p.name}</div>
+                                  <div className="text-slate-500 text-sm truncate">{p.orgName}</div>
+                                </div>
+                                <button
+                                  onClick={() => void usarProjetoExistente(p.ref)}
+                                  disabled={pausePolling || Boolean(supabasePausingRef)}
+                                  className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white font-medium text-sm transition-all disabled:opacity-50 shrink-0"
+                                >
+                                  Usar este
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-3 text-xs text-slate-500 text-center">
+                            O instalador aplica no banco escolhido só o que ainda faltar.
+                          </div>
                         </div>
 
                         <div className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-slate-400">
