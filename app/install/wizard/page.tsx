@@ -857,6 +857,12 @@ export default function InstallWizardPage() {
     setSupabaseCreateError(null);
     setSupabaseResolveError(null);
     setSupabaseProjectRef(projectRef);
+    // Precisa gravar a URL tambem, e nao so o ref: o botao de instalar checa
+    // `supabaseUrl.trim()`, entao sem isto a instalacao fica pronta mas o botao
+    // nunca habilita, sem dizer o porque. O caminho de CRIAR projeto ja fazia
+    // isso (linha do setSupabaseUrl no fluxo de provisionamento); o de
+    // reaproveitar projeto nasceu sem.
+    setSupabaseUrl(`https://${projectRef}.supabase.co`);
     // Vai direto para a tela de "resolvendo chaves"; nao ha nada a provisionar,
     // o projeto ja esta de pe.
     setSupabaseProvisioning(false);
