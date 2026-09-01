@@ -36,14 +36,33 @@ CREATE INDEX IF NOT EXISTS idx_deals_organization_id
 CREATE INDEX IF NOT EXISTS idx_leads_organization_id
   ON public.leads(organization_id);
 
--- ai_decisions.organization_id
-CREATE INDEX IF NOT EXISTS idx_ai_decisions_organization_id
-  ON public.ai_decisions(organization_id);
+-- ai_decisions.organization_id e messaging_webhook_events.organization_id
+--
+-- Estas duas colunas NAO existem na cadeia de migrations: nenhuma migration as
+-- cria, e o codigo nao as usa (a Edge Function de webhook insere em
+-- messaging_webhook_events sem organization_id, e ai_decisions nao aparece em
+-- lugar nenhum do app). Sem guarda, um banco novo para aqui com
+-- "column organization_id does not exist" e a instalacao morre no meio.
+--
+-- A guarda existe em vez de simplesmente apagar as linhas porque bancos mais
+-- antigos, onde a coluna foi adicionada na mao, continuam ganhando o indice.
+DO $guarda$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'ai_decisions'
+               AND column_name = 'organization_id') THEN
+    CREATE INDEX IF NOT EXISTS idx_ai_decisions_organization_id
+      ON public.ai_decisions(organization_id);
+  END IF;
 
--- messaging_webhook_events.organization_id
--- Used in webhook dedup checks and audit queries.
-CREATE INDEX IF NOT EXISTS idx_messaging_webhook_events_organization_id
-  ON public.messaging_webhook_events(organization_id);
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'messaging_webhook_events'
+               AND column_name = 'organization_id') THEN
+    CREATE INDEX IF NOT EXISTS idx_messaging_webhook_events_organization_id
+      ON public.messaging_webhook_events(organization_id);
+  END IF;
+END
+$guarda$;
 
 
 -- ============================================================
