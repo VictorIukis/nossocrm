@@ -11,7 +11,7 @@ import { isAIFeatureEnabled } from '@/lib/ai/features/server';
 
 export const maxDuration = 60;
 
-type AIProvider = 'google';
+import { resolverProvedor, type AIProvider } from '@/lib/ai/config';
 
 function asOptionalString(v: unknown): string | undefined {
     return typeof v === 'string' ? v : undefined;
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
     // 3. Get AI settings (org-wide: organization_settings é a fonte de verdade)
     const { data: orgSettings } = await supabase
         .from('organization_settings')
-        .select('ai_enabled, ai_provider, ai_model, ai_google_key')
+        .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_anthropic_key')
         .eq('organization_id', organizationId)
         .maybeSingle();
 
@@ -155,7 +155,7 @@ export async function POST(req: Request) {
 
     const provider: AIProvider = 'google';
     const modelId: string | null = orgSettings?.ai_model ?? null;
-    const apiKey: string | null = orgSettings?.ai_google_key ?? null;
+    const apiKey: string | null = resolverProvedor(orgSettings).apiKey || null;
 
     if (!apiKey) {
         return new Response(

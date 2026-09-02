@@ -9,19 +9,55 @@
  */
 
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER } from './defaults';
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER, AI_COLUNA_DA_CHAVE } from './defaults';
 
-export type AIProvider = 'google';
+export type AIProvider = 'anthropic' | 'google';
 
-const ALLOWED_GOOGLE_MODELS = new Set([
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-1.5-pro',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-8b',
-  'gemini-2.5-pro-preview-03-25',
-  'gemini-2.5-flash-preview-04-17',
-]);
+/**
+ * Modelos aceitos por provedor.
+ *
+ * A lista existe como trava: sem ela, um valor errado gravado no banco vira uma
+ * chamada a um modelo inexistente e o erro so aparece em producao. Modelo fora
+ * da lista cai no padrao do provedor em vez de quebrar.
+ */
+const MODELOS_PERMITIDOS: Record<AIProvider, Set<string>> = {
+  anthropic: new Set([
+    'claude-opus-5',
+    'claude-sonnet-5',
+    'claude-haiku-4-5-20251001',
+  ]),
+  google: new Set([
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-pro',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
+  ]),
+};
+
+/**
+ * Descobre qual provedor e qual chave usar, a partir de uma linha de
+ * organization_settings.
+ *
+ * Antes disto, oito lugares liam `ai_google_key` na mao. Trocar de provedor
+ * significava caçar todos eles, e esquecer um significa uma parte do sistema
+ * continuar chamando o provedor antigo em silencio.
+ */
+export function resolverProvedor(config: {
+  ai_provider?: string | null;
+  ai_anthropic_key?: string | null;
+  ai_google_key?: string | null;
+} | null | undefined): { provider: AIProvider; apiKey: string } {
+  const bruto = (config?.ai_provider || '').trim().toLowerCase();
+  const provider: AIProvider =
+    bruto === 'anthropic' || bruto === 'google' ? bruto : AI_DEFAULT_PROVIDER;
+
+  const coluna = AI_COLUNA_DA_CHAVE[provider];
+  const apiKey = (config?.[coluna as keyof typeof config] as string | null) || '';
+
+  return { provider, apiKey };
+}
 
 /**
  * Cria e retorna uma instância do modelo de IA configurada.
@@ -51,12 +87,17 @@ export const getModel = (provider: AIProvider, apiKey: string, modelId: string) 
         throw new Error('API Key is missing');
     }
 
-    const resolvedModel = modelId && ALLOWED_GOOGLE_MODELS.has(modelId)
+    const escolhido = modelId && MODELOS_PERMITIDOS[provider]?.has(modelId)
         ? modelId
-        : AI_DEFAULT_MODELS.google;
+        : AI_DEFAULT_MODELS[provider];
+
+    if (provider === 'anthropic') {
+        const anthropic = createAnthropic({ apiKey });
+        return anthropic(escolhido);
+    }
 
     const google = createGoogleGenerativeAI({ apiKey });
-    return google(resolvedModel);
+    return google(escolhido);
 };
 
 /**
@@ -88,12 +129,17 @@ export interface ModelConfig {
  * ```
  */
 export const getModelFromEnv = (config?: ModelConfig) => {
+    const provider = config?.provider || AI_DEFAULT_PROVIDER;
     const model = config?.model || '';
-    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+
+    const apiKey = provider === 'anthropic'
+        ? process.env.ANTHROPIC_API_KEY
+        : process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
     if (!apiKey) {
-        throw new Error('API Key for google not found in environment (GOOGLE_GENERATIVE_AI_API_KEY)');
+        const nome = provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'GOOGLE_GENERATIVE_AI_API_KEY';
+        throw new Error(`API Key for ${provider} not found in environment (${nome})`);
     }
 
-    return getModel(AI_DEFAULT_PROVIDER, apiKey, model);
+    return getModel(provider, apiKey, model);
 };

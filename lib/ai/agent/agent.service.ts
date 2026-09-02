@@ -8,7 +8,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { type AIProvider } from '../config';
+import { type AIProvider, resolverProvedor } from '../config';
 import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER } from '../defaults';
 import { generateWithFailover, buildProviderList } from './provider-failover';
 import { checkConversationRateLimit } from './rate-limiter';
@@ -113,7 +113,7 @@ export async function getOrgAIConfig(
   const { data: orgSettings, error } = await supabase
     .from('organization_settings')
     .select(
-      'ai_enabled, ai_provider, ai_model, ai_google_key, ai_hitl_threshold, ai_hitl_min_confidence, ai_hitl_expiration_hours, ai_config_mode, ai_learned_patterns, ai_template_id, ai_takeover_enabled, ai_takeover_minutes, ai_base_system_prompt, timezone'
+      'ai_enabled, ai_provider, ai_model, ai_google_key, ai_anthropic_key, ai_hitl_threshold, ai_hitl_min_confidence, ai_hitl_expiration_hours, ai_config_mode, ai_learned_patterns, ai_template_id, ai_takeover_enabled, ai_takeover_minutes, ai_base_system_prompt, timezone'
     )
     .eq('organization_id', organizationId)
     .maybeSingle();
@@ -128,9 +128,9 @@ export async function getOrgAIConfig(
     return null;
   }
 
-  const provider = (orgSettings.ai_provider || AI_DEFAULT_PROVIDER) as AIProvider;
-
-  const apiKey = orgSettings.ai_google_key || '';
+  // Provedor e chave saem do mesmo lugar, para nao existir a chance de o
+  // provedor ser um e a chave ser a de outro.
+  const { provider, apiKey } = resolverProvedor(orgSettings);
 
   if (!apiKey) {
     console.warn('[AIAgent] No API key configured for provider:', provider);

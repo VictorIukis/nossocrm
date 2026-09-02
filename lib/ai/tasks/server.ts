@@ -2,7 +2,7 @@ import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
-import { getModel, type AIProvider } from '@/lib/ai/config';
+import { getModel, resolverProvedor, type AIProvider } from '@/lib/ai/config';
 
 export type AITaskContext = {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -87,7 +87,7 @@ export async function requireAITaskContext(req: Request): Promise<AITaskContext>
 
   const { data: orgSettings, error: orgError } = await supabase
     .from('organization_settings')
-    .select('ai_enabled, ai_model, ai_google_key')
+    .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_anthropic_key')
     .eq('organization_id', organizationId)
     .single();
 
@@ -96,8 +96,8 @@ export async function requireAITaskContext(req: Request): Promise<AITaskContext>
     throw new AITaskHttpError(403, 'AI_DISABLED', 'IA desativada pela organização. Um admin pode ativar em Configurações → Central de I.A.');
   }
 
-  const provider: AIProvider = 'google';
-  const apiKey: string | null = orgSettings?.ai_google_key ?? null;
+  const { provider } = resolverProvedor(orgSettings);
+  const apiKey: string | null = resolverProvedor(orgSettings).apiKey || null;
 
   if (orgError || !apiKey) {
     throw new AITaskHttpError(

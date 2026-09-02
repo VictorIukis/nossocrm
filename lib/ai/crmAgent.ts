@@ -6,7 +6,9 @@ import { formatPriorityPtBr } from '@/lib/utils/priority';
 import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER } from './defaults';
 import { nomeDoAssistente } from '@/lib/marca';
 
-type AIProvider = 'google';
+// tipo vem de lib/ai/config: duplicar aqui fez este arquivo continuar
+// acreditando que so existe Google mesmo depois de a troca ser feita.
+import type { AIProvider } from './config';
 
 function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -219,14 +221,14 @@ APRESENTAÇÃO (MUITO IMPORTANTE):
  * 
  * @param context - Type-safe context from the request
  * @param userId - Current user ID
- * @param apiKey - Google AI API key from organization_settings
+ * @param apiKey - chave do provedor configurado em organization_settings
  * @param modelId - Model to use (default from AI_DEFAULT_MODELS)
  */
 export async function createCRMAgent(
     context: CRMCallOptions,
     userId: string,
     apiKey: string,
-    modelId: string = AI_DEFAULT_MODELS.google,
+    modelId: string = AI_DEFAULT_MODELS[AI_DEFAULT_PROVIDER],
     provider: AIProvider = AI_DEFAULT_PROVIDER
 ) {
     console.log('[CRMAgent] 🤖 Creating agent with context:', {

@@ -12,13 +12,15 @@ function json<T>(body: T, status = 200): Response {
   });
 }
 
-type Provider = 'google';
+type Provider = 'anthropic' | 'google';
 
 const UpdateOrgAISettingsSchema = z
   .object({
     aiEnabled: z.boolean().optional(),
+    aiProvider: z.enum(['anthropic', 'google']).optional(),
     aiModel: z.string().min(1).max(200).optional(),
     aiGoogleKey: z.string().optional(),
+    aiAnthropicKey: z.string().optional(),
     telegramBotToken: z.string().optional(),
     telegramChatId: z.string().nullable().optional(),
   })
@@ -51,7 +53,7 @@ export async function GET() {
 
   const { data: orgSettings, error: orgError } = await supabase
     .from('organization_settings')
-    .select('ai_enabled, ai_provider, ai_model, ai_google_key, telegram_bot_token, telegram_chat_id')
+    .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_anthropic_key, telegram_bot_token, telegram_chat_id')
     .eq('organization_id', profile.organization_id)
     .maybeSingle();
 
@@ -67,21 +69,29 @@ export async function GET() {
     return '••••••••' + key.slice(-4);
   };
 
+  const provedor = (orgSettings?.ai_provider === 'google' ? 'google' : 'anthropic') as Provider;
+
   const baseResponse = {
     aiEnabled,
-    aiProvider: 'google' as Provider,
-    aiModel: orgSettings?.ai_model || AI_DEFAULT_MODELS.google,
+    aiProvider: provedor,
+    aiModel: orgSettings?.ai_model || AI_DEFAULT_MODELS[provedor],
     aiHasGoogleKey: Boolean(orgSettings?.ai_google_key),
+    aiHasAnthropicKey: Boolean(orgSettings?.ai_anthropic_key),
     hasTelegramBot: Boolean(orgSettings?.telegram_bot_token),
     telegramChatId: orgSettings?.telegram_chat_id ?? null,
   };
 
   // Security: members should NOT receive raw API keys.
+  // Quem nao e administrador nunca recebe chave, nem mascarada.
   if (profile.role !== 'admin') {
-    return json({ ...baseResponse, aiGoogleKey: '' });
+    return json({ ...baseResponse, aiGoogleKey: '', aiAnthropicKey: '' });
   }
 
-  return json({ ...baseResponse, aiGoogleKey: maskKey(orgSettings?.ai_google_key) });
+  return json({
+    ...baseResponse,
+    aiGoogleKey: maskKey(orgSettings?.ai_google_key),
+    aiAnthropicKey: maskKey(orgSettings?.ai_anthropic_key),
+  });
 }
 
 /**
@@ -143,8 +153,13 @@ export async function POST(req: Request) {
   if (updates.aiEnabled !== undefined) dbUpdates.ai_enabled = updates.aiEnabled;
   if (updates.aiModel !== undefined) dbUpdates.ai_model = updates.aiModel;
 
+  if (updates.aiProvider !== undefined) dbUpdates.ai_provider = updates.aiProvider;
+
   const googleKey = normalizeKey(updates.aiGoogleKey);
   if (googleKey !== undefined) dbUpdates.ai_google_key = googleKey;
+
+  const anthropicKey = normalizeKey(updates.aiAnthropicKey);
+  if (anthropicKey !== undefined) dbUpdates.ai_anthropic_key = anthropicKey;
 
   if (updates.telegramBotToken !== undefined) {
     dbUpdates.telegram_bot_token = updates.telegramBotToken.trim() || null;

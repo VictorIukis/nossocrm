@@ -4,7 +4,7 @@
 import { streamText, tool, UIMessage, convertToModelMessages, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { getModel } from '@/lib/ai/config';
+import { getModel, resolverProvedor } from '@/lib/ai/config';
 import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { MARCA } from '@/lib/marca';
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     // 4. Get AI settings from org
     const { data: orgSettings } = await supabase
         .from('organization_settings')
-        .select('ai_enabled, ai_provider, ai_model, ai_google_key')
+        .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_anthropic_key')
         .eq('organization_id', organizationId)
         .maybeSingle();
 
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
 
     const provider: AIProvider = 'google';
     const modelId: string | null = orgSettings?.ai_model ?? null;
-    const apiKey: string | null = orgSettings?.ai_google_key ?? null;
+    const apiKey: string | null = resolverProvedor(orgSettings).apiKey || null;
 
     if (!apiKey) {
         return new Response(
