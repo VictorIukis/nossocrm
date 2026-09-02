@@ -488,3 +488,40 @@ body {
 .cv-card-lg {
   contain-intrinsic-size: auto 200px; /* Cards grandes (com preview) */
 }
+
+/* ============================================================================
+ * Botao primario no tema escuro
+ * ----------------------------------------------------------------------------
+ * A escala primary virou o grafite da Glow. No tema claro isso fica perfeito:
+ * botao quase preto sobre off-white, que e exatamente a linguagem do site.
+ * No tema escuro, porem, grafite #34383a sobre fundo #0a0a0a praticamente
+ * desaparece: o botao "Entrar" sumia na pagina de login.
+ *
+ * A correcao inverte o botao no escuro, em vez de clarear a escala inteira.
+ * Botao claro com texto escuro e um padrao consagrado em interface escura e
+ * mantem o verde-limao livre para ser acento de verdade, em vez de virar a cor
+ * de 411 botoes.
+ *
+ * Feito por especificidade (duas classes) e nao por !important: `.bg-x.text-y`
+ * pesa mais que `.text-white` do Tailwind e ganha sem forcar nada.
+ * ========================================================================== */
+.dark .bg-primary-600.text-white,
+.dark .bg-primary-500.text-white {
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+}
+
+.dark .bg-primary-600.text-white:hover,
+.dark .bg-primary-500.text-white:hover,
+.dark .hover\:bg-primary-500.text-white:hover,
+.dark .hover\:bg-primary-700.text-white:hover {
+  background-color: #ffffff;
+  color: var(--color-primary-900);
+}
+
+/* O anel de foco no escuro tambem sumia contra o botao claro. */
+.dark .bg-primary-600.text-white:focus-visible,
+.dark .bg-primary-500.text-white:focus-visible {
+  outline: 2px solid var(--color-acento);
+  outline-offset: 2px;
+}
