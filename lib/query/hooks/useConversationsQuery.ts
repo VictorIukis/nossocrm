@@ -250,11 +250,28 @@ export function useUnreadCount() {
         .gt('unread_count', 0)
         .eq('status', 'open');
 
-      if (error) throw error;
+      // NAO propaga o erro, de proposito.
+      //
+      // Este numero e o contador ao lado de "Mensagens" na barra lateral, que
+      // vive no layout e portanto em TODA pagina. Lancando excecao, uma falha
+      // passageira aqui derrubava a tela inteira com "Algo deu errado" e as
+      // Configuracoes ficavam inacessiveis, ainda que nada nelas tivesse
+      // problema. Aconteceu de verdade: o PostgREST devolve 503 por alguns
+      // segundos ao recarregar o cache de esquema depois de uma migration.
+      //
+      // Enfeite nao derruba pagina. Sem numero e melhor que sem sistema.
+      if (error) {
+        console.warn('[mensagens] não consegui contar as não lidas:', error.message);
+        return 0;
+      }
       return count || 0;
     },
     staleTime: 60 * 1000, // 60s - realtime subscription handles live updates
     refetchOnWindowFocus: false,
+    // Tenta de novo em falha passageira, com espera crescente: o 503 de recarga
+    // de esquema costuma passar em poucos segundos.
+    retry: 3,
+    retryDelay: (tentativa) => Math.min(1000 * 2 ** tentativa, 8000),
     enabled: !authLoading && !!user,
   });
 }
