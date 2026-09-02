@@ -40,12 +40,21 @@ export async function GET() {
     // Get profile
     const { data: profile } = await supabase
       .from('profiles')
-      .select('organization_id')
+      .select('organization_id, role')
       .eq('id', user.id)
       .single();
 
     if (!profile?.organization_id) {
       return NextResponse.json({ error: 'No organization' }, { status: 404 });
+    }
+
+    // Ferramenta de diagnostico, restrita a administrador.
+    //
+    // Ela mostra a configuracao interna de IA da organizacao e, no POST,
+    // dispara chamadas que consomem token pago. Exigir apenas login deixava
+    // isso ao alcance de qualquer pessoa da equipe do cliente.
+    if (profile.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
     }
 
     // Get org settings
@@ -178,12 +187,17 @@ export async function POST(request: NextRequest) {
     // Get profile
     const { data: profile } = await supabase
       .from('profiles')
-      .select('organization_id')
+      .select('organization_id, role')
       .eq('id', user.id)
       .single();
 
     if (!profile?.organization_id) {
       return NextResponse.json({ error: 'No organization' }, { status: 404 });
+    }
+
+    // Este POST dispara uma chamada de IA de verdade, que custa token.
+    if (profile.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
     }
 
     // Get org settings
