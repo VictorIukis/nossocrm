@@ -56,12 +56,26 @@ describe('assinatura do webhook do Chatwoot', () => {
     expect(await assinaturaConfere(CORPO, SEGREDO, a, String(quase), AGORA)).toEqual({ ok: true });
   });
 
-  it('recusa evento sem assinatura e sem timestamp', async () => {
+  it('recusa evento sem assinatura nenhuma', async () => {
     expect((await assinaturaConfere(CORPO, SEGREDO, '', String(AGORA), AGORA)).ok).toBe(false);
-    const a = await assinar(CORPO, AGORA);
-    const r = await assinaturaConfere(CORPO, SEGREDO, a, '', AGORA);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.motivo).toBe('timestamp ausente');
+  });
+
+  // Instalações do Chatwoot divergem no que entra no cálculo. Exigir um formato
+  // só derrubou o espelhamento inteiro em produção: mensagem de cliente parava
+  // de chegar em silêncio.
+  it('aceita instalação que assina só o corpo, sem timestamp', async () => {
+    const a = `sha256=${await hmacHex(SEGREDO, CORPO)}`;
+    expect(await assinaturaConfere(CORPO, SEGREDO, a, '', AGORA)).toEqual({ ok: true });
+  });
+
+  it('aceita instalação que assina só o corpo, mesmo mandando timestamp', async () => {
+    const a = `sha256=${await hmacHex(SEGREDO, CORPO)}`;
+    expect(await assinaturaConfere(CORPO, SEGREDO, a, String(AGORA), AGORA)).toEqual({ ok: true });
+  });
+
+  it('sem timestamp, ainda recusa quem não tem o segredo', async () => {
+    const a = `sha256=${await hmacHex('outro-segredo', CORPO)}`;
+    expect((await assinaturaConfere(CORPO, SEGREDO, a, '', AGORA)).ok).toBe(false);
   });
 
   it('recusa assinatura de tamanho diferente sem estourar', async () => {

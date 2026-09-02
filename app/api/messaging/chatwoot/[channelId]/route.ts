@@ -132,11 +132,24 @@ export async function POST(
     );
 
     if (!veredito.ok) {
-      // O motivo vai para o log porque existe uma versao do Chatwoot em que o
-      // segredo mostrado na tela nao e o mesmo usado para assinar. Se isso
-      // acontecer aqui, a mensagem para de chegar e sem esta linha nao haveria
-      // como distinguir "segredo errado" de "webhook nao configurado".
       console.warn('[chatwoot] evento recusado:', veredito.motivo);
+
+      // O motivo tambem vai para o canal, e nao so para o log.
+      //
+      // Existe versao do Chatwoot em que o segredo mostrado na tela nao e o
+      // mesmo usado para assinar. Quando isso acontece, o espelhamento morre em
+      // silencio: mensagem de cliente simplesmente para de chegar, e quem
+      // configurou nao tem como saber que a culpa e do segredo. Deixar isso
+      // visivel na tela do canal e a diferenca entre um ajuste de um minuto e
+      // uma investigacao inteira.
+      const aviso = `Evento do Chatwoot recusado: ${veredito.motivo}. Confira o segredo do webhook, ou apague o campo para desligar a conferência.`;
+      await supabase
+        .from('messaging_channels')
+        .update({ status: 'error', status_message: aviso })
+        .eq('id', canal.id)
+        .neq('status_message', aviso) // evita reescrever a cada evento recusado
+        .then(undefined, () => {});
+
       return json(401, { error: `assinatura inválida: ${veredito.motivo}` });
     }
   }

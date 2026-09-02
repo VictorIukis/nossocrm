@@ -1,14 +1,25 @@
 /**
  * Conferencia da assinatura dos eventos do Chatwoot.
  *
- * Formato, conferido na documentacao e nao no chute:
- *   X-Chatwoot-Signature: sha256=<hmac hex>
- *   X-Chatwoot-Timestamp: <unix em segundos>
- * e o HMAC-SHA256 e calculado sobre a string "<timestamp>.<corpo cru>".
+ * O Chatwoot manda `X-Chatwoot-Signature: sha256=<hmac hex>`. O QUE entra no
+ * calculo varia com a versao da instalacao: umas assinam
+ * "<timestamp>.<corpo cru>", com o horario num cabecalho a parte, e outras
+ * assinam so o corpo. A documentacao descreve a primeira; a instalacao real
+ * pode ser a segunda.
  *
- * O timestamp entra no calculo de proposito: sem ele, quem interceptasse um
- * evento valido poderia reenviar o mesmo par corpo+assinatura para sempre.
- * Por isso tambem recusamos evento velho.
+ * Isto nao e detalhe academico: exigir um formato so, na pratica, derrubou o
+ * espelhamento inteiro. Com a conferencia ligada, mensagem de cliente parava de
+ * chegar em silencio -- pior do que nao ter conferencia nenhuma, porque a falha
+ * nao aparece em lugar nenhum.
+ *
+ * Entao aceitamos qualquer um dos formatos conhecidos. Isso nao afrouxa a
+ * seguranca: todos exigem conhecer o segredo, que e o ponto. O que muda e so
+ * onde o horario entra.
+ *
+ * Protecao contra reenvio: quando vem timestamp, ele e conferido contra uma
+ * janela curta, entao um evento capturado nao serve para sempre. Quando a
+ * instalacao nao manda timestamp, nao ha o que conferir -- e isso fica dito
+ * aqui em voz alta em vez de parecer que a protecao existe.
  *
  * Vive num arquivo proprio, e nao dentro da rota, para poder ser testado: e o
  * tipo de codigo que, quando quebra, quebra em silencio.
@@ -28,28 +39,42 @@ export async function assinaturaConfere(
   const recebida = cabecalhoAssinatura.trim().replace(/^sha256=/i, '').toLowerCase();
   if (!recebida) return { ok: false, motivo: 'assinatura vazia' };
 
-  const timestamp = Number(cabecalhoTimestamp);
-  if (!Number.isFinite(timestamp) || !cabecalhoTimestamp.trim()) {
-    return { ok: false, motivo: 'timestamp ausente' };
+  const bruto = cabecalhoTimestamp.trim();
+  const timestamp = Number(bruto);
+  const temTimestamp = bruto !== '' && Number.isFinite(timestamp);
+
+  // Só dá para recusar evento velho quando existe um horário para comparar.
+  if (temTimestamp) {
+    const idadeSegundos = Math.abs(agoraEmSegundos - timestamp);
+    if (idadeSegundos > JANELA_DE_ACEITE_SEGUNDOS) {
+      return { ok: false, motivo: `evento fora da janela (${Math.round(idadeSegundos)}s)` };
+    }
   }
 
-  const idadeSegundos = Math.abs(agoraEmSegundos - timestamp);
-  if (idadeSegundos > JANELA_DE_ACEITE_SEGUNDOS) {
-    return { ok: false, motivo: `evento fora da janela (${Math.round(idadeSegundos)}s)` };
+  const candidatos = temTimestamp
+    ? [`${bruto}.${corpo}`, corpo, `${bruto}${corpo}`]
+    : [corpo];
+
+  for (const mensagem of candidatos) {
+    const esperada = await hmacHex(segredo, mensagem);
+    if (comparaEmTempoConstante(esperada, recebida)) return { ok: true };
   }
 
-  const esperada = await hmacHex(segredo, `${cabecalhoTimestamp}.${corpo}`);
+  return { ok: false, motivo: 'assinatura não confere' };
+}
 
-  // Comparacao em tempo constante: comparar com === vazaria, pelo tempo de
-  // resposta, quantos caracteres iniciais estavam certos, e isso permite
-  // descobrir a assinatura correta tentativa a tentativa.
-  const a = new TextEncoder().encode(esperada);
-  const b = new TextEncoder().encode(recebida);
-  if (a.length !== b.length) return { ok: false, motivo: 'assinatura não confere' };
+/**
+ * Compara sem deixar o tempo de resposta contar quantos caracteres bateram.
+ * Comparar com === permite descobrir a assinatura correta tentativa a tentativa.
+ */
+function comparaEmTempoConstante(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a);
+  const y = new TextEncoder().encode(b);
+  if (x.length !== y.length) return false;
 
   let diferenca = 0;
-  for (let i = 0; i < a.length; i++) diferenca |= a[i] ^ b[i];
-  return diferenca === 0 ? { ok: true } : { ok: false, motivo: 'assinatura não confere' };
+  for (let i = 0; i < x.length; i++) diferenca |= x[i] ^ y[i];
+  return diferenca === 0;
 }
 
 /** Exportada para os testes poderem produzir uma assinatura legitima. */
