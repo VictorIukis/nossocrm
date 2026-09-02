@@ -18,6 +18,7 @@ const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
   loading: () => <div className="w-[320px] h-[400px] animate-pulse bg-slate-800 rounded-xl" />,
 });
 import { cn } from '@/lib/utils';
+import { deveEnviarComEnter } from './enviarComEnter';
 import { useSendTextMessage, useSendMessage } from '@/lib/query/hooks/useMessagingMessagesQuery';
 import { useAssignConversation } from '@/lib/query/hooks/useConversationsQuery';
 import { useAuth } from '@/context/AuthContext';
@@ -430,7 +431,14 @@ export function MessageInput({ conversation, replyTo, onCancelReply }: MessageIn
       return;
     }
 
-    const trimmedText = text.trim();
+    // Le do proprio campo, e nao do estado.
+    //
+    // O textarea e controlado, entao o navegador atualiza o DOM na hora da
+    // tecla e o React so alcanca no render seguinte. Quem digita rapido e da
+    // Enter em seguida chega aqui com o estado ainda atrasado -- e o `return`
+    // logo abaixo abortava o envio SEM DIZER NADA: a mensagem simplesmente
+    // sumia. Aconteceu duas vezes em teste antes de eu entender o motivo.
+    const trimmedText = (textareaRef.current?.value ?? text).trim();
     if (!trimmedText || isDisabled) return;
 
     // Clear immediately — optimistic message already in cache via onMutate
@@ -446,10 +454,20 @@ export function MessageInput({ conversation, replyTo, onCancelReply }: MessageIn
   }, [text, isDisabled, sendTextMessage, conversation.id, pendingMedia, handleSendMedia, replyTo, onCancelReply, claimConversation]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
+    const nativo = e.nativeEvent as KeyboardEvent & { isComposing?: boolean };
+    if (
+      !deveEnviarComEnter({
+        key: e.key,
+        shiftKey: e.shiftKey,
+        keyCode: e.keyCode,
+        isComposing: nativo.isComposing,
+      })
+    ) {
+      return;
     }
+
+    e.preventDefault();
+    handleSubmit();
   }, [handleSubmit]);
 
   const handleInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
