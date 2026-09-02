@@ -49,6 +49,7 @@ import {
   CHANNEL_TYPE_INFO,
 } from '@/lib/messaging/types';
 import { ChannelSetupWizard } from './ChannelSetupWizard';
+import { ChannelCredentialsForm } from './ChannelCredentialsForm';
 import {
   useLeadRoutingRules,
   useBoardsWithStages,
@@ -693,7 +694,7 @@ export function ChannelsSection() {
   const { addToast } = useToast();
 
   // Queries
-  const { data: channels = [], isLoading } = useChannelsQuery();
+  const { data: channels = [], isLoading, refetch: recarregarCanais } = useChannelsQuery();
   const { data: routingRules = [], isLoading: routingLoading } = useLeadRoutingRules();
   const { data: boards = [], isLoading: boardsLoading } = useBoardsWithStages();
 
@@ -863,7 +864,7 @@ export function ChannelsSection() {
         variant="danger"
       />
 
-      {/* Edit Modal (placeholder - will be replaced by wizard) */}
+      {/* Editar canal: credenciais + resumo */}
       <Modal
         isOpen={!!channelToEdit}
         onClose={() => setChannelToEdit(null)}
@@ -871,10 +872,16 @@ export function ChannelsSection() {
         size="md"
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600 dark:text-slate-300">
-            A configuração detalhada do canal será implementada no próximo passo
-            (ChannelSetupWizard).
-          </p>
+          {channelToEdit && (
+            <ChannelCredentialsForm
+              channelId={channelToEdit.id}
+              channelType={channelToEdit.channelType}
+              provider={channelToEdit.provider}
+              onSaved={() => {
+                void recarregarCanais();
+              }}
+            />
+          )}
 
           {channelToEdit && (
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10">
