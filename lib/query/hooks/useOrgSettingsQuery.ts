@@ -55,9 +55,10 @@ export const useOrgSettings = (options?: { enabled?: boolean }) => {
       const aiData: OrgAISettings = await aiRes.json();
 
       const base: UserSettings = settings ?? {
-        aiProvider: 'google',
+        aiProvider: 'anthropic',
         aiApiKey: '',
         aiGoogleKey: '',
+        aiAnthropicKey: '',
         aiModel: '',
         aiThinking: true,
         aiSearch: true,
@@ -68,14 +69,20 @@ export const useOrgSettings = (options?: { enabled?: boolean }) => {
         onboardingCompleted: false,
       };
 
-      const aiKeyConfigured =
-        !!(aiData.aiGoogleKey) || !!(aiData.aiHasGoogleKey);
+      // Considera configurado quando existe chave do provedor ativo, e nao so
+      // do Google: com Claude como padrao, olhar so o Google faria a tela dizer
+      // "sem chave" mesmo com a Anthropic preenchida.
+      const provedor = aiData.aiProvider === 'google' ? 'google' : 'anthropic';
+      const aiKeyConfigured = provedor === 'anthropic'
+        ? !!(aiData.aiAnthropicKey) || !!(aiData.aiHasAnthropicKey)
+        : !!(aiData.aiGoogleKey) || !!(aiData.aiHasGoogleKey);
 
       return {
         ...base,
-        aiProvider: 'google' as const,
+        aiProvider: provedor,
         aiModel: aiData.aiModel || base.aiModel,
         aiGoogleKey: aiData.aiGoogleKey || base.aiGoogleKey,
+        aiAnthropicKey: aiData.aiAnthropicKey || base.aiAnthropicKey,
         // Merged extras
         aiOrgEnabled: aiData.aiEnabled ?? false,
         aiKeyConfigured,

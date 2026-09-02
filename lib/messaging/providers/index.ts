@@ -36,6 +36,7 @@ import { registerProvider } from '../channel-factory';
 import { ZApiWhatsAppProvider, MetaCloudWhatsAppProvider, EvolutionWhatsAppProvider } from './whatsapp';
 import { MetaInstagramProvider } from './instagram';
 import { ResendEmailProvider } from './email';
+import { ChatwootProvider } from './chatwoot';
 
 // Register Z-API provider
 registerProvider({
@@ -260,4 +261,49 @@ registerProvider({
     },
   ],
   features: ['media', 'read_receipts', 'qr_code'],
+});
+
+// Registra o Chatwoot.
+//
+// Aqui o CRM nao e dono do numero: o Chatwoot continua sendo, e este provedor
+// espelha as conversas e sabe responder por dentro dele. E o desenho certo
+// quando ja existe um Chatwoot em producao com agentes de IA em cima, porque um
+// numero da Cloud API so aponta o webhook para um lugar.
+registerProvider({
+  channelType: 'whatsapp',
+  providerName: 'chatwoot',
+  constructor: ChatwootProvider,
+  displayName: 'Chatwoot',
+  description: 'Espelha as conversas de um Chatwoot existente, e permite responder por aqui',
+  configFields: [
+    {
+      key: 'baseUrl',
+      label: 'Endereço do Chatwoot',
+      type: 'text',
+      required: true,
+      placeholder: 'https://central.suaempresa.com.br',
+    },
+    {
+      key: 'accountId',
+      label: 'Número da conta',
+      type: 'text',
+      required: true,
+      placeholder: '1',
+    },
+    {
+      key: 'apiAccessToken',
+      label: 'Token de acesso',
+      type: 'password',
+      required: true,
+      placeholder: 'token do agente ou do bot',
+    },
+    {
+      key: 'inboxId',
+      label: 'Caixa de entrada (opcional)',
+      type: 'text',
+      required: false,
+      placeholder: 'deixe vazio para espelhar todas',
+    },
+  ],
+  features: ['media'],
 });

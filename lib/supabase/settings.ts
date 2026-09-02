@@ -35,9 +35,10 @@ export interface DbLifecycleStage {
 }
 
 export interface UserSettings {
-  aiProvider: 'google';
+  aiProvider: 'anthropic' | 'google';
   aiApiKey: string;
   aiGoogleKey: string;
+  aiAnthropicKey: string;
   aiModel: string;
   aiThinking: boolean;
   aiSearch: boolean;
@@ -51,9 +52,11 @@ export interface UserSettings {
 // Transform DB -> App
 const transformSettings = (db: DbUserSettings): UserSettings => {
   return {
-    aiProvider: 'google',
+    // Padrao do produto e Claude; a chave por organizacao manda de verdade.
+    aiProvider: 'anthropic',
     aiApiKey: db.ai_google_key || db.ai_api_key || '',
     aiGoogleKey: db.ai_google_key || '',
+    aiAnthropicKey: '',
     aiModel: db.ai_model,
     aiThinking: db.ai_thinking,
     aiSearch: db.ai_search,
