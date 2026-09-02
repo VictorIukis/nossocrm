@@ -11,10 +11,10 @@
  */
 export const MARCA = {
   /** Nome completo. Aparece em titulo de aba, barra lateral e rodape de PDF. */
-  nome: 'NossoCRM',
+  nome: 'CRM Glow Holding',
 
   /** Nome curto, para o PWA e espacos apertados. */
-  nomeCurto: 'NossoCRM',
+  nomeCurto: 'CRM Glow',
 
   /** Como o assistente de IA se apresenta dentro do produto. */
   assistente: 'Pilot',
@@ -26,7 +26,7 @@ export const MARCA = {
   logo: '',
 
   /** Letra ou sigla usada como marca d'agua quando nao ha logo (ex.: no PDF). */
-  inicial: 'N',
+  inicial: 'G',
 } as const;
 
 /**

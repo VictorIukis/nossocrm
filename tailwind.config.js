@@ -16,27 +16,36 @@ const config = {
         extend: {
             fontFamily: {
                 sans: ['var(--font-inter)', 'Inter', 'sans-serif'],
-                display: ['Space Grotesk', 'sans-serif'],
+                display: ['Instrument Serif', 'Georgia', 'serif'],
                 serif: ['Cinzel', 'serif'],
             },
             colors: {
+                // Grafite da Glow (glowholding.com.br). Ver comentario em globals.css:
+                // o verde-limao e acento, nao cor primaria.
                 primary: {
-                    50: '#f0f9ff',
-                    100: '#e0f2fe',
-                    200: '#bae6fd',
-                    300: '#7dd3fc',
-                    400: '#38bdf8',
-                    500: '#0ea5e9',
-                    600: '#0284c7',
-                    700: '#0369a1',
-                    800: '#075985',
-                    900: '#0c4a6e',
+                    50: '#f4f4f3',
+                    100: '#e6e6e4',
+                    200: '#c9cac7',
+                    300: '#a3a5a1',
+                    400: '#6f736e',
+                    500: '#4a4e4b',
+                    600: '#34383a',
+                    700: '#24282b',
+                    800: '#171a1d',
+                    900: '#0e1013',
+                },
+                // Verde-limao da Glow. Use SEMPRE com texto escuro por cima.
+                acento: {
+                    DEFAULT: '#aeea00',
+                    forte: '#9bd100',
+                    fraco: '#edf9c4',
+                    texto: '#0e1013',
                 },
                 dark: {
-                    bg: '#020617',
-                    card: '#0f172a',
-                    border: '#1e293b',
-                    hover: '#334155',
+                    bg: '#0a0a0a',
+                    card: '#141414',
+                    border: '#24282b',
+                    hover: '#34383a',
                 },
                 // Semantic tokens — bridge CSS vars (globals.css) to Tailwind utilities
                 // Usage: bg-surface, text-muted, bg-success, text-error-text, etc.

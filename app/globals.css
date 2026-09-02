@@ -8,26 +8,38 @@
 @theme {
   /* Font Families */
   --font-sans: 'Inter', var(--font-inter), sans-serif;
-  --font-display: 'Space Grotesk', sans-serif;
+  --font-display: var(--font-display-serif), 'Instrument Serif', Georgia, serif;
   --font-serif: 'Cinzel', serif;
 
   /* Primary Colors */
-  --color-primary-50: #f0f9ff;
-  --color-primary-100: #e0f2fe;
-  --color-primary-200: #bae6fd;
-  --color-primary-300: #7dd3fc;
-  --color-primary-400: #38bdf8;
-  --color-primary-500: #0ea5e9;
-  --color-primary-600: #0284c7;
-  --color-primary-700: #0369a1;
-  --color-primary-800: #075985;
-  --color-primary-900: #0c4a6e;
+  /* Escala da marca Glow: grafite, extraida de glowholding.com.br (#0e1013).
+   * Deliberadamente NAO e o verde-limao. No site a base e preto sobre off-white
+   * e o limao aparece como marca-texto, uma vez. Num CRM denso, limao em 411
+   * lugares seria ilegivel: texto branco sobre #aeea00 nao passa em contraste
+   * nenhum. O limao vive em --color-acento, usado onde precisa chamar atencao. */
+  --color-primary-50: #f4f4f3;
+  --color-primary-100: #e6e6e4;
+  --color-primary-200: #c9cac7;
+  --color-primary-300: #a3a5a1;
+  --color-primary-400: #6f736e;
+  --color-primary-500: #4a4e4b;
+  --color-primary-600: #34383a;
+  --color-primary-700: #24282b;
+  --color-primary-800: #171a1d;
+  --color-primary-900: #0e1013;
+
+  /* Acento da marca: verde-limao. SEMPRE com texto escuro por cima, nunca branco.
+   * E assim que o botao "Solicitar diagnostico" do site funciona. */
+  --color-acento: #aeea00;
+  --color-acento-forte: #9bd100;
+  --color-acento-fraco: #edf9c4;
+  --color-acento-texto: #0e1013;
 
   /* Dark Theme Colors */
-  --color-dark-bg: #020617;
-  --color-dark-card: #0f172a;
-  --color-dark-border: #1e293b;
-  --color-dark-hover: #334155;
+  --color-dark-bg: #0a0a0a;
+  --color-dark-card: #141414;
+  --color-dark-border: #24282b;
+  --color-dark-hover: #34383a;
 
   /* shadcn semantic tokens */
   --color-background: var(--color-bg);
@@ -72,8 +84,8 @@ svg.lucide {
   --app-bottom-nav-height: 0px;
 
   /* Light Mode - Soft Cream (OKLCH) */
-  --color-bg: oklch(97% 0.005 90);
-  --color-surface: oklch(99% 0.002 90);
+  --color-bg: #f2f1ed;              /* off-white quente da Glow */
+  --color-surface: #fbfaf8;
   --color-muted: oklch(95% 0.008 90);
   --color-border: oklch(90% 0.01 90);
   --color-border-subtle: oklch(93% 0.008 90);
@@ -104,7 +116,7 @@ svg.lucide {
   --color-orange-text: oklch(48% 0.16 55);
 
   /* Text Colors - Light Mode */
-  --color-text-primary: oklch(25% 0.015 260);
+  --color-text-primary: #0e1013;    /* tinta da Glow */
   --color-text-secondary: oklch(45% 0.02 260);
   --color-text-muted: oklch(55% 0.025 260);
   --color-text-subtle: oklch(62% 0.025 260);
@@ -168,8 +180,8 @@ html, body {
 
 .dark {
   /* Dark Mode - Deep Slate (OKLCH) */
-  --color-bg: oklch(11% 0.025 260);
-  --color-surface: oklch(15% 0.02 260);
+  --color-bg: #0a0a0a;              /* preto do site da Glow */
+  --color-surface: #141414;
   --color-muted: oklch(22% 0.015 260);
   --color-border: oklch(26% 0.012 260);
   --color-border-subtle: oklch(22% 0.01 260 / 0.6);
