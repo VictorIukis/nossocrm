@@ -20,6 +20,7 @@
  */
 
 import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
+import { assinaturaConfere } from '@/lib/messaging/providers/chatwoot/assinatura';
 
 export const runtime = 'nodejs';
 
@@ -87,7 +88,16 @@ export async function POST(
   const { channelId } = await params;
   if (!channelId) return json(404, { error: 'channel_id ausente na URL' });
 
-  const evento = (await req.json().catch(() => null)) as EventoChatwoot | null;
+  // Le como texto, e nao com req.json(), porque a assinatura e calculada sobre
+  // os bytes exatos que chegaram. Reserializar o objeto mudaria espacos e ordem
+  // de chaves, e a conferencia falharia sempre.
+  const corpoBruto = await req.text();
+  let evento: EventoChatwoot | null = null;
+  try {
+    evento = JSON.parse(corpoBruto) as EventoChatwoot;
+  } catch {
+    return json(400, { error: 'corpo inválido' });
+  }
   if (!evento) return json(400, { error: 'corpo inválido' });
 
   const supabase = createStaticAdminClient();
@@ -101,16 +111,33 @@ export async function POST(
   if (erroCanal) return json(500, { error: 'erro ao buscar canal' });
   if (!canal) return json(404, { error: 'canal não encontrado' });
 
-  // Segredo compartilhado, quando configurado. O Chatwoot nao assina o corpo,
-  // entao a protecao possivel e um segredo na propria URL ou em cabecalho.
+  // Conferencia de assinatura.
+  //
+  // Eu tinha escrito aqui que o Chatwoot nao assina o corpo. Ele assina: ao
+  // criar o webhook, a propria tela entrega um segredo e passa a mandar o HMAC
+  // do corpo em cada evento. Sem conferir isso, qualquer pessoa que descobrisse
+  // esta URL poderia inserir mensagem falsa no historico de um cliente.
   const cred = (canal.credentials || {}) as { webhookSecret?: string };
   if (cred.webhookSecret) {
-    const enviado =
-      req.headers.get('x-webhook-secret') ||
-      new URL(req.url).searchParams.get('secret') ||
-      '';
-    if (enviado !== cred.webhookSecret) {
-      return json(401, { error: 'segredo inválido' });
+    const assinatura = req.headers.get('x-chatwoot-signature') || '';
+    if (!assinatura) {
+      return json(401, { error: 'evento sem assinatura' });
+    }
+
+    const veredito = await assinaturaConfere(
+      corpoBruto,
+      cred.webhookSecret,
+      assinatura,
+      req.headers.get('x-chatwoot-timestamp') || ''
+    );
+
+    if (!veredito.ok) {
+      // O motivo vai para o log porque existe uma versao do Chatwoot em que o
+      // segredo mostrado na tela nao e o mesmo usado para assinar. Se isso
+      // acontecer aqui, a mensagem para de chegar e sem esta linha nao haveria
+      // como distinguir "segredo errado" de "webhook nao configurado".
+      console.warn('[chatwoot] evento recusado:', veredito.motivo);
+      return json(401, { error: `assinatura inválida: ${veredito.motivo}` });
     }
   }
 
