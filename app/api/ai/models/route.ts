@@ -116,13 +116,28 @@ export async function GET(request: NextRequest) {
 
   const { data: settings, error: settingsError } = await supabase
     .from('organization_settings')
-    .select('ai_google_key')
+    .select('ai_provider, ai_google_key, ai_anthropic_key')
     .eq('organization_id', profile.organization_id)
     .maybeSingle();
 
-  if (settingsError || !settings?.ai_google_key) {
-    return json({ models: [] });
+  if (settingsError) return json({ models: [] });
+
+  const provedor = settings?.ai_provider === 'google' ? 'google' : 'anthropic';
+
+  if (provedor === 'anthropic') {
+    // A Anthropic tem endpoint de listagem, mas ele exige a chave e a lista de
+    // modelos que este produto usa e curta e estavel. Devolver fixo evita uma
+    // chamada de rede e o caso de a tela ficar vazia enquanto a chave nao existe.
+    return json({
+      models: [
+        { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', description: 'Equilíbrio entre qualidade e custo. Recomendado.' },
+        { id: 'claude-opus-5', name: 'Claude Opus 5', description: 'O mais capaz, para análise difícil. Mais caro.' },
+        { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'O mais rápido e barato, para volume.' },
+      ],
+    });
   }
+
+  if (!settings?.ai_google_key) return json({ models: [] });
 
   try {
     const models = await fetchGoogleModels(settings.ai_google_key);

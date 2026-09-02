@@ -5,38 +5,25 @@ import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
 import type { AIModelInfo } from '@/app/api/ai/models/route';
 
-// Função para validar API key Gemini fazendo uma chamada real à API
+/**
+ * Confere a chave pelo servidor.
+ *
+ * Antes isto chamava a API do Google direto do navegador. Além de a chave
+ * passear pelo cliente, com a Anthropic nem funcionaria: o navegador bloqueia
+ * a chamada por política de origem, e a tela diria "chave inválida" para uma
+ * chave perfeitamente boa. Foi exatamente o que aconteceu.
+ */
 async function validateApiKey(apiKey: string, model: string): Promise<{ valid: boolean; error?: string }> {
     if (!apiKey || apiKey.trim().length < 10) {
         return { valid: false, error: 'Chave muito curta' };
     }
-
     try {
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: 'Hi' }] }],
-                    generationConfig: { maxOutputTokens: 1 }
-                })
-            }
-        );
-
-        if (response.ok) return { valid: true };
-
-        const error = await response.json();
-        if (response.status === 400 && error?.error?.message?.includes('API key not valid')) {
-            return { valid: false, error: 'Chave de API inválida' };
-        }
-        if (response.status === 403) {
-            return { valid: false, error: 'Chave sem permissão para este modelo' };
-        }
-        if (response.status === 429) {
-            return { valid: true }; // rate limit = key válida
-        }
-        return { valid: false, error: error?.error?.message || 'Erro desconhecido' };
+        const r = await fetch('/api/settings/ai/validar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey, provider: 'anthropic', model }),
+        });
+        return await r.json();
     } catch {
         return { valid: false, error: 'Erro de conexão. Verifique sua internet.' };
     }
@@ -310,10 +297,10 @@ export const AIConfigSection: React.FC = () => {
                         <div className="flex items-center justify-between">
                             <div>
                                 <h3 className="font-medium text-green-900 dark:text-green-100 flex items-center gap-2">
-                                    <span className="text-lg">🌍</span> Google Search Grounding
+                                    <span className="text-lg">🌍</span> Busca na web (apenas Gemini)
                                 </h3>
                                 <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                                    Conecta o modelo à internet para buscar informações atualizadas.
+                                    Recurso do Gemini. Não se aplica ao Claude, que usa outras ferramentas.
                                 </p>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer">
