@@ -28,6 +28,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
+import { MARCA } from '@/lib/marca';
 import {
   LayoutDashboard,
   KanbanSquare,
@@ -282,7 +283,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               N
             </div>
             <span className={`text-xl font-bold font-display tracking-tight text-slate-900 dark:text-white whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
-              NossoCRM
+              {MARCA.nome}
             </span>
           </div>
 

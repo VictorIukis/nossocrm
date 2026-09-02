@@ -7,6 +7,7 @@ import { Send, Loader2, Bot, User, Sparkles, Wrench, X, MessageCircle, Minimize2
 import { useAI } from '@/context/AIContext';
 import dynamic from 'next/dynamic';
 import remarkGfm from 'remark-gfm';
+import { nomeDoAssistente } from '@/lib/marca';
 
 // Lazy load react-markdown para reduzir bundle inicial em ~35KB
 // O chat geralmente inicia minimizado (startMinimized={true}), então o markdown
@@ -559,7 +560,7 @@ export function UIChat({
                     <Sparkles className="w-5 h-5 text-primary-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <h2 className="font-semibold text-white">NossoCRM Pilot</h2>
+                    <h2 className="font-semibold text-white">{nomeDoAssistente()}</h2>
                     <p className="text-xs text-slate-400 truncate">
                         {headerSubtitle}
                     </p>

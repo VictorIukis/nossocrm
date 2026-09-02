@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getModel } from '@/lib/ai/config';
 import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
+import { MARCA } from '@/lib/marca';
 
 export const maxDuration = 60;
 
@@ -637,7 +638,7 @@ export async function POST(req: Request) {
     // 6. Stream response
     const result = streamText({
         model,
-        system: `Você é o assistente inteligente do NossoCRM. Você tem acesso completo ao CRM e pode:
+        system: `Você é o assistente inteligente do ${MARCA.nome}. Você tem acesso completo ao CRM e pode:
 
 - Buscar e analisar deals, contatos e atividades
 - Criar novas atividades, deals e tarefas

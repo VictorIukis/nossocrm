@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { Metadata } from 'next';
 import { MessagingPage } from '@/features/messaging/MessagingPage';
 import { MessageThreadSkeleton } from '@/features/messaging/components';
+import { tituloDaPagina } from '@/lib/marca';
 
 interface ConversationPageProps {
   params: Promise<{
@@ -10,7 +11,7 @@ interface ConversationPageProps {
 }
 
 export const metadata: Metadata = {
-  title: 'Conversa | NossoCRM',
+  title: tituloDaPagina('Conversa'),
   description: 'Visualizar conversa',
 };
 

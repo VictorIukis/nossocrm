@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { MARCA } from '@/lib/marca';
 
 export const runtime = 'nodejs';
 
@@ -9,7 +10,7 @@ function html(specUrl: string) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>NossoCRM Public API — Swagger</title>
+    <title>${MARCA.nome} Public API — Swagger</title>
     <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
     <style>
       :root {

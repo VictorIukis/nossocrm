@@ -1,3 +1,4 @@
+import { MARCA } from '@/lib/marca';
 // OpenAPI 3.1.2 "source of truth" for NossoCRM Public API (Integrations).
 //
 // NOTE:
@@ -10,10 +11,10 @@ export function getPublicApiOpenApiDocument(): OpenApiDocument {
   return {
     openapi: '3.1.2',
     info: {
-      title: 'NossoCRM Public API',
+      title: `${MARCA.nome} Public API`,
       version: 'v1',
       description:
-        'API pública do NossoCRM para integrações (n8n/Make). Produto em primeiro lugar: copiar → colar → testar.',
+        `API pública do ${MARCA.nome} para integrações (n8n/Make). Produto em primeiro lugar: copiar → colar → testar.`,
     },
     servers: [{ url: '/api/public/v1' }],
     tags: [

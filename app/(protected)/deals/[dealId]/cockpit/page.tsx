@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import DealCockpitFocusClient from '@/features/deals/cockpit/DealCockpitFocusClient';
+import { tituloDaPagina } from '@/lib/marca';
 
 /**
  * Cockpit (verdadeiro/original) - UI do Focus (Inbox) como rota canônica.
@@ -7,7 +8,7 @@ import DealCockpitFocusClient from '@/features/deals/cockpit/DealCockpitFocusCli
  */
 export async function generateMetadata({ params }: { params: Promise<{ dealId: string }> }): Promise<Metadata> {
   const { dealId } = await params;
-  return { title: `Deal ${dealId} | NossoCRM` };
+  return { title: tituloDaPagina(`Deal ${dealId}`) };
 }
 
 export default async function DealCockpitPage({

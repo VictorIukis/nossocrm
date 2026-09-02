@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { sendTelegramMessage } from '@/lib/notifications/telegram';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
+import { MARCA } from '@/lib/marca';
 
 function json<T>(body: T, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -39,7 +40,7 @@ export async function POST(req: Request): Promise<Response> {
     await sendTelegramMessage(
       org.telegram_bot_token,
       org.telegram_chat_id,
-      '✅ <b>NossoCRM — Teste de notificação</b>\n\nSe você recebeu esta mensagem, as notificações de handoff estão configuradas corretamente!',
+      `✅ <b>${MARCA.nome} — Teste de notificação</b>\n\nSe você recebeu esta mensagem, as notificações de handoff estão configuradas corretamente!`,
     );
     return json({ ok: true });
   } catch (err) {

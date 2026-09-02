@@ -1,3 +1,4 @@
+import { MARCA } from '@/lib/marca';
 /**
  * web-scraper.ts — Extrai conteúdo de qualquer URL como Markdown limpo.
  *
@@ -59,7 +60,7 @@ function extractTitle(html: string) {
 async function fallbackScrape(url: string, maxChars: number) {
   const res = await fetch(url, {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    headers: { 'User-Agent': 'NossoCRM-Bot/1.0', 'Accept': 'text/html' },
+    headers: { 'User-Agent': `${MARCA.nomeCurto}-Bot/1.0`, 'Accept': 'text/html' },
   });
   if (!res.ok) return null;
   const html = await res.text();

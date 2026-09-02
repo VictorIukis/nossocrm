@@ -7,6 +7,7 @@ import { Modal, ModalForm } from '@/components/ui/Modal';
 import { InputField, SubmitButton } from '@/components/ui/FormField';
 import { companyFormSchema } from '@/lib/validations/schemas';
 import type { CompanyFormData } from '@/lib/validations/schemas';
+import { MARCA } from '@/lib/marca';
 
 type CompanyFormInput = z.input<typeof companyFormSchema>;
 
@@ -81,7 +82,7 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
       <ModalForm onSubmit={handleSubmit(handleFormSubmit)}>
         <InputField
           label="Nome"
-          placeholder="Ex: NossoCRM LTDA"
+          placeholder={`Ex: ${MARCA.nome} LTDA`}
           required
           error={errors.name}
           registration={register('name')}
