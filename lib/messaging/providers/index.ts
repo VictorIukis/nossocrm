@@ -304,6 +304,17 @@ registerProvider({
       required: false,
       placeholder: 'deixe vazio para espelhar todas',
     },
+    {
+      // Sem este campo nao havia como ligar a conferencia de assinatura pela
+      // tela, e a rota de webhook aceitaria qualquer evento de quem soubesse
+      // a URL. O Chatwoot entrega o segredo ao criar o webhook, e mostra de
+      // novo no formulario de edicao dele.
+      key: 'webhookSecret',
+      label: 'Segredo do webhook (recomendado)',
+      type: 'password',
+      required: false,
+      placeholder: 'o Chatwoot mostra ao criar o webhook',
+    },
   ],
   features: ['media'],
 });
