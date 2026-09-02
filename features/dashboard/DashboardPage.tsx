@@ -17,6 +17,7 @@ import { useDashboardMetrics, PeriodFilter, COMPARISON_LABELS } from './hooks/us
 import { PeriodFilterSelect } from '@/components/filters/PeriodFilterSelect';
 import { LazyFunnelChart, ChartWrapper } from '@/components/charts';
 import { SkeletonStatCard } from '@/components/ui/Skeleton';
+import { formatarDinheiro, formatarDinheiroCurto } from '@/lib/formato/dinheiro';
 
 
 /**
@@ -156,7 +157,7 @@ const DashboardPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
           <StatCard
             title="Pipeline Total"
-            value={`$${pipelineValue.toLocaleString()}`}
+            value={formatarDinheiro(pipelineValue)}
             subtext={pipelineChangeInfo.text}
             subtextPositive={pipelineChangeInfo.isPositive}
             icon={DollarSign}
@@ -186,7 +187,7 @@ const DashboardPage: React.FC = () => {
           />
           <StatCard
             title="Receita (Ganha)"
-            value={`$${wonRevenue.toLocaleString()}`}
+            value={formatarDinheiro(wonRevenue)}
             subtext={revenueChangeInfo.text}
             subtextPositive={revenueChangeInfo.isPositive}
             icon={TrendingUp}
@@ -269,7 +270,7 @@ const DashboardPage: React.FC = () => {
               Sem mudança de estágio há +10 dias.
             </p>
             <p className="text-xs text-slate-400 mt-1">
-              ${stagnantDealsValue.toLocaleString()} em risco
+              {formatarDinheiro(stagnantDealsValue)} em risco
             </p>
           </div>
 
@@ -279,7 +280,7 @@ const DashboardPage: React.FC = () => {
             </h3>
             <div className="flex items-end gap-2">
               <span className="text-2xl font-bold text-slate-900 dark:text-white">
-                ${(avgLTV / 1000).toFixed(1)}k
+                {formatarDinheiroCurto(avgLTV)}
               </span>
               <span className="text-xs text-green-500 font-bold mb-1">Médio</span>
             </div>

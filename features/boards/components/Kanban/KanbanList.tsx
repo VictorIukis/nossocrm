@@ -4,6 +4,7 @@ import { DealView, CustomFieldDefinition, BoardStage } from '@/types';
 import { ActivityStatusIcon } from './ActivityStatusIcon';
 import { getActivityStatus } from '@/features/boards/hooks/useBoardsController';
 import { MoveToStageModal } from '../Modals/MoveToStageModal';
+import { formatarDinheiro } from '@/lib/formato/dinheiro';
 
 type QuickAddType = 'CALL' | 'MEETING' | 'EMAIL';
 
@@ -93,7 +94,7 @@ const KanbanListRow = React.memo(function KanbanListRow({
           )}
         </td>
         <td className="px-6 py-3 font-mono text-slate-700 dark:text-slate-200">
-          ${deal.value.toLocaleString()}
+          {formatarDinheiro(deal.value)}
         </td>
         <td className="px-6 py-3">
           <div className="flex items-center gap-2">

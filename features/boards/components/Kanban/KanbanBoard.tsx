@@ -5,6 +5,7 @@ import { isDealRotting, getActivityStatus } from '@/features/boards/hooks/useBoa
 import { MoveToStageModal } from '../Modals/MoveToStageModal';
 import { SkeletonDealCard } from '@/components/ui/Skeleton';
 import { useLifecycleStages } from '@/lib/query/hooks/useLifecycleStagesQuery';
+import { formatarDinheiro } from '@/lib/formato/dinheiro';
 
 /**
  * UI: Drop highlight should follow the stage color.
@@ -253,7 +254,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               <div className="text-xs text-slate-500 dark:text-slate-400 font-medium text-right">
                 Total:{' '}
                 <span className="text-slate-900 dark:text-white font-mono">
-                  ${stageValue.toLocaleString()}
+                  {formatarDinheiro(stageValue)}
                 </span>
               </div>
             </div>

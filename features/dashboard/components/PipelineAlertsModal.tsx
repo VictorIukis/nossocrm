@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, AlertTriangle, Clock, Calendar, TrendingUp, ChevronRight } from 'lucide-react';
 import { Deal } from '@/types';
+import { formatarDinheiro } from '@/lib/formato/dinheiro';
 
 interface PipelineAlert {
   type: 'stagnant' | 'no-activity' | 'ready-to-close';
@@ -187,7 +188,7 @@ export const PipelineAlertsModal: React.FC<PipelineAlertsModalProps> = ({
                           {deal.title}
                         </p>
                         <p className="text-sm text-slate-500 dark:text-slate-400">
-                          ${deal.value.toLocaleString()} • {deal.probability}% probabilidade
+                          {formatarDinheiro(deal.value)} • {deal.probability}% probabilidade
                         </p>
                       </div>
                       <ChevronRight 

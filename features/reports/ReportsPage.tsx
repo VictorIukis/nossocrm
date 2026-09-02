@@ -10,6 +10,7 @@ import { LazyRevenueTrendChart, ChartWrapper } from '@/components/charts';
 import { generateReportPDF } from './utils/generateReportPDF';
 import { useBoards } from '@/lib/query/hooks';
 import { useAuth } from '@/context/AuthContext';
+import { formatarDinheiroCurto, LOCALIDADE } from '@/lib/formato/dinheiro';
 
 /**
  * Componente React `ReportsPage`.
@@ -93,15 +94,16 @@ const ReportsPage: React.FC = () => {
   const formatGoalValue = useCallback((value: number) => {
     switch (goalType) {
       case 'currency':
-        if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-        if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
-        return `$${value.toLocaleString()}`;
+        return formatarDinheiroCurto(value);
       case 'number':
         return value.toFixed(0);
       case 'percentage':
         return `${value.toFixed(1)}%`;
       default:
-        return value.toLocaleString();
+        // Localidade explicita: sem ela o separador de milhar segue a
+        // configuracao do navegador de quem abre, e o mesmo relatorio sai
+        // "1.234" para um e "1,234" para outro.
+        return value.toLocaleString(LOCALIDADE);
     }
   }, [goalType]);
 
@@ -132,11 +134,7 @@ const ReportsPage: React.FC = () => {
   }, [wonDeals]);
 
   // Formatador de moeda
-  const formatCurrency = useCallback((value: number) => {
-    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
-    return `$${value.toLocaleString()}`;
-  }, []);
+  const formatCurrency = useCallback((value: number) => formatarDinheiroCurto(value), []);
 
   const generatedBy = useMemo(() => {
     if (profile?.first_name && profile?.last_name) return `${profile.first_name} ${profile.last_name}`;

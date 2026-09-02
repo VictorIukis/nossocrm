@@ -8,6 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { formatarDinheiroCurto } from '@/lib/formato/dinheiro';
 
 interface RevenueTrendChartProps {
   data: Array<{ month: string; revenue: number }>;
@@ -40,7 +41,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({ data }) =>
         axisLine={false}
         tickLine={false}
         tick={{ fill: 'var(--chart-text)', fontSize: 12 }}
-        tickFormatter={value => `$${value / 1000}k`}
+        tickFormatter={(value: number) => formatarDinheiroCurto(value)}
       />
       <Tooltip
         contentStyle={{

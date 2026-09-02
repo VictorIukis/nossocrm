@@ -4,6 +4,7 @@ import { DealView } from '@/types';
 import { Building2, Hourglass, Trophy, XCircle } from 'lucide-react';
 import { ActivityStatusIcon } from './ActivityStatusIcon';
 import { priorityAriaLabelPtBr } from '@/lib/utils/priority';
+import { formatarDinheiro } from '@/lib/formato/dinheiro';
 
 interface DealCardProps {
   deal: DealView;
@@ -140,7 +141,7 @@ const DealCardComponent: React.FC<DealCardProps> = ({
     // Main content
     parts.push(deal.title);
     if (deal.companyName) parts.push(deal.companyName);
-    parts.push(`$${deal.value.toLocaleString()}`);
+    parts.push(formatarDinheiro(deal.value));
 
     // Additional context
     const priority = getPriorityLabel(deal.priority);
@@ -259,7 +260,7 @@ const DealCardComponent: React.FC<DealCardProps> = ({
             )
           )}
           <span className="text-sm font-bold text-slate-700 dark:text-slate-200 font-mono">
-            ${deal.value.toLocaleString()}
+            {formatarDinheiro(deal.value)}
           </span>
         </div>
 
