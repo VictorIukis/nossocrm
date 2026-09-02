@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getErrorMessage } from '@/lib/utils/errorUtils'
 import { Loader2, Mail, Lock, ArrowRight } from 'lucide-react'
+import { MARCA } from '@/lib/marca';
 
 /**
  * Componente React `LoginPage`.
@@ -90,6 +91,13 @@ export default function LoginPage() {
 
             <div className="max-w-md w-full relative z-10 px-4">
                 <div className="text-center mb-8">
+                    <img
+                        src={MARCA.logo}
+                        alt={MARCA.nome}
+                        width={730}
+                        height={145}
+                        className={`h-8 w-auto mx-auto mb-6 ${MARCA.logoInverteNoEscuro ? 'dark:invert' : ''}`}
+                    />
                     <h1 className="text-4xl font-bold text-slate-900 dark:text-white font-display tracking-tight mb-2">
                         Bem-vindo de volta
                     </h1>
@@ -198,7 +206,7 @@ export default function LoginPage() {
                 </div>
 
                 <p className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">
-                    &copy; {new Date().getFullYear()} CRM IA. Todos os direitos reservados.
+                    &copy; {new Date().getFullYear()} {MARCA.nome}. Todos os direitos reservados.
                 </p>
             </div>
         </div>

@@ -279,12 +279,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       >
         <div className={`h-16 flex items-center border-b border-[var(--color-border-subtle)] transition-all duration-300 px-5 ${sidebarCollapsed ? 'justify-center px-0' : 'justify-between'}`}>
           <div className={`flex items-center transition-all duration-300 ${sidebarCollapsed ? 'gap-0 justify-center' : 'gap-3'}`}>
-            <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary-500/20 shrink-0" aria-hidden="true">
-              N
-            </div>
-            <span className={`text-xl font-bold font-display tracking-tight text-slate-900 dark:text-white whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
-              {MARCA.nome}
-            </span>
+            {/* Recolhida mostra so o simbolo; aberta, o lockup inteiro.
+                A logo e escura, entao no tema escuro ela e invertida por CSS. */}
+            {sidebarCollapsed ? (
+              <img
+                src={MARCA.logoSimbolo}
+                alt={MARCA.nome}
+                width={36}
+                height={36}
+                className={`w-9 h-9 shrink-0 ${MARCA.logoInverteNoEscuro ? 'dark:invert' : ''}`}
+              />
+            ) : (
+              <img
+                src={MARCA.logo}
+                alt={MARCA.nome}
+                width={730}
+                height={145}
+                className={`h-7 w-auto ${MARCA.logoInverteNoEscuro ? 'dark:invert' : ''}`}
+              />
+            )}
           </div>
 
           {/* Header Toggle Button - Only visible when expanded */}

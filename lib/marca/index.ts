@@ -20,10 +20,22 @@ export const MARCA = {
   assistente: 'Pilot',
 
   /**
-   * Caminho da logo em `public/`. Deixe vazio para exibir o nome em texto, que e
-   * o comportamento atual: nao existe arquivo de logo no projeto ainda.
+   * Lockup horizontal (simbolo + palavra), usado com a barra lateral aberta.
+   * Vazio faz cair para o nome em texto.
    */
-  logo: '',
+  logo: '/marca/glow.png',
+
+  /** Proporcao do lockup, para reservar espaco sem provocar salto de layout. */
+  logoProporcao: 730 / 145,
+
+  /** So o simbolo, para a barra lateral recolhida e para o icone do app. */
+  logoSimbolo: '/marca/glow-simbolo.png',
+
+  /**
+   * A logo e monocromatica escura. No tema escuro ela sumiria no fundo, entao a
+   * interface a inverte por CSS em vez de manter dois arquivos para sincronizar.
+   */
+  logoInverteNoEscuro: true,
 
   /** Letra ou sigla usada como marca d'agua quando nao ha logo (ex.: no PDF). */
   inicial: 'G',
