@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
 // Import from main module to ensure providers are registered
@@ -128,7 +128,14 @@ export async function POST(request: NextRequest) {
     const messageId = dbMessage.id;
     const channelId = channel.id;
 
-    void (async () => {
+    // `after` no lugar de fire-and-forget solto.
+    //
+    // Em funcao serverless, a plataforma pode congelar o processo assim que a
+    // resposta e devolvida. Um `void (async () => ...)()` corre o risco de ser
+    // interrompido no meio do envio, e a mensagem fica presa em "queued" sem
+    // ninguem saber. `after` avisa a plataforma para manter a funcao viva ate
+    // este bloco terminar.
+    after(async () => {
       const supabaseAdmin = createStaticAdminClient();
       try {
         await supabaseAdmin
@@ -188,9 +195,28 @@ export async function POST(request: NextRequest) {
             .eq('id', messageId);
         }
       } catch (err: unknown) {
-        console.error('[messaging/messages] background send failed:', err instanceof Error ? err.message : err, err instanceof Error ? err.stack : '');
+        const motivo = err instanceof Error ? err.message : String(err);
+        console.error('[messaging/messages] background send failed:', motivo, err instanceof Error ? err.stack : '');
+
+        // Marcar como falha e obrigatorio, nao opcional.
+        //
+        // Antes, uma excecao aqui era so registrada no log e a mensagem ficava
+        // em "queued" para sempre. Na tela ela aparece igual a uma mensagem
+        // enviada, entao quem atende acredita que o cliente recebeu. Reproduzido
+        // em producao: canal sem credencial, mensagem "enviada", cliente nunca
+        // recebeu, nenhum aviso em lugar nenhum.
+        await supabaseAdmin
+          .from('messaging_messages')
+          .update({
+            status: 'failed',
+            error_code: 'ENVIO_INTERROMPIDO',
+            error_message: motivo.slice(0, 500),
+            failed_at: new Date().toISOString(),
+          })
+          .eq('id', messageId)
+          .then(undefined, (e) => console.error('[messaging/messages] falhei ao marcar falha:', e));
       }
-    })();
+    });
 
     // Respond immediately with pending message — UI updates via realtime
     return NextResponse.json(transformMessage(dbMessage as DbMessagingMessage));

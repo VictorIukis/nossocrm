@@ -150,6 +150,21 @@ export class ChatwootProvider extends BaseChannelProvider {
   async sendMessage(params: SendMessageParams): Promise<SendMessageResult> {
     const conversaChatwoot = params.to;
 
+    // Sem token nao ha o que tentar. Recusar aqui, com motivo, e melhor do que
+    // deixar a chamada seguir e falhar la na frente de um jeito generico: o
+    // caso real e o canal recem-criado, ainda esperando alguem colar o token.
+    if (!this.cred?.apiAccessToken?.trim()) {
+      return {
+        success: false,
+        error: {
+          code: 'SEM_TOKEN',
+          message:
+            'O canal do Chatwoot ainda não tem token de acesso. Preencha em Configurações → Integrações para poder responder daqui.',
+          retryable: false,
+        },
+      };
+    }
+
     if (!/^\d+$/.test(conversaChatwoot)) {
       return {
         success: false,
