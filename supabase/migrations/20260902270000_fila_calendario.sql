@@ -57,6 +57,15 @@ BEGIN
     RETURN COALESCE(NEW, OLD);
   END IF;
 
+  -- Nasceu com id do Google: veio de la, nao volta para la.
+  --
+  -- Sem esta linha, TUDO que era lido do Google era imediatamente devolvido a
+  -- ele. O laco so apareceu porque o Google recusou reescrever aniversarios de
+  -- contatos; sem essa recusa, teria passado despercebido gastando cota.
+  IF TG_OP = 'INSERT' AND NEW.google_event_id IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+
   -- Mudança que veio do próprio Google não volta para ele.
   --
   -- Quando aplicamos um evento vindo de lá, gravamos o etag na mesma operação.
