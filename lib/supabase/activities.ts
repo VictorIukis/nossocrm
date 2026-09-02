@@ -176,6 +176,12 @@ export const activitiesService = {
         description: activity.description || null,
         type: activity.type,
         date: activity.date,
+        // ends_at e location entram aqui na mão porque este insert monta os
+        // campos um a um, em vez de usar transformActivityToDb. Campo novo que
+        // esqueça esta lista é gravado em silêncio como nulo -- foi o que
+        // aconteceu com a hora de término na primeira tentativa.
+        ends_at: activity.endsAt || null,
+        location: activity.location || null,
         completed: activity.completed || false,
         deal_id: sanitizeUUID(activity.dealId),
         contact_id: sanitizeUUID(activity.contactId),
