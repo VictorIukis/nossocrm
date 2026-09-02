@@ -250,11 +250,15 @@ export async function POST(
           status: entrada ? 'delivered' : 'sent',
           delivered_at: quando.toISOString(),
           sender_name: (entrada ? remetente?.name : evento.sender?.name) || null,
-          // 'contact' quando quem falou foi o cliente; 'agent' para o que saiu
-          // do Chatwoot, seja uma pessoa do time ou uma das IAs de atendimento.
-          // O CRM nao tem como distinguir as duas daqui, e fingir que tem seria
-          // pior do que nao dizer.
-          sender_type: entrada ? 'contact' : 'agent',
+          // A coluna so aceita 'user', 'ai', 'agent' e 'system': ela descreve
+          // quem respondeu do NOSSO lado. Mensagem do cliente nao tem valor
+          // correspondente, e direction 'inbound' ja diz de onde veio -- entao
+          // fica nula, em vez de inventar uma categoria.
+          //
+          // 'agent' cobre tanto pessoa do time quanto IA de atendimento: o CRM
+          // nao consegue distinguir as duas pelo evento do Chatwoot, e fingir
+          // que consegue seria pior do que nao dizer.
+          sender_type: entrada ? null : 'agent',
           metadata: { chatwoot_message_id: evento.id, chatwoot_conversation_id: conversaChatwoot },
         },
         { onConflict: 'conversation_id,external_id' }
