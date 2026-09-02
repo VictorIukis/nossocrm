@@ -372,7 +372,10 @@ export const AIConfigSection: React.FC = () => {
                             ) : (
                                 <>
                                     <Save size={16} />
-                                    {hasUnsavedChanges ? 'Salvar' : 'Salvo'}
+                                    {/* "Salvo" so quando existe chave gravada. Antes, campo
+                                        vazio e nada no banco tambem caiam aqui, e o botao
+                                        afirmava o contrario da verdade. */}
+                                    {!hasUnsavedChanges && aiKeyConfigured ? 'Salvo' : 'Salvar'}
                                 </>
                             )}
                         </button>
