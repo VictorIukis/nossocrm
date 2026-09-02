@@ -88,6 +88,12 @@ jobs:
       - name: Tests (Vitest)
         run: npm run test:run
 
+      # As Edge Functions rodam no Deno e ficam fora do tsconfig, entao erro de
+      # sintaxe nelas atravessa lint, tipos e testes. Ja aconteceu: uma variavel
+      # declarada duas vezes deixava a funcao do WhatsApp oficial sem iniciar.
+      - name: Edge Functions carregam
+        run: npm run check:edge
+
   # ─── build ────────────────────────────────────────────────────────────────
   # Full Next.js production build. Runs only on pushes to main.
   # Depends on check passing to avoid wasting build minutes on broken code.

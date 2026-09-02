@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "precheck": "npm run lint && npm run typecheck && npm run test:run && npm run build",
-    "precheck:fast": "npm run lint && npm run typecheck && npm run test:run",
+    "precheck": "npm run lint && npm run typecheck && npm run test:run && npm run check:edge && npm run build",
+    "precheck:fast": "npm run lint && npm run typecheck && npm run test:run && npm run check:edge",
     "stories": "vitest run test/stories --reporter=dot",
     "build": "next build",
     "start": "next start",
@@ -16,7 +16,8 @@
     "smoke:integrations": "node scripts/smoke-integrations.mjs",
     "release:prepare": "node scripts/release.mjs prepare",
     "release:draft": "node scripts/release.mjs draft",
-    "release:tag": "node scripts/release.mjs tag"
+    "release:tag": "node scripts/release.mjs tag",
+    "check:edge": "node scripts/checar-edge-functions.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.116",

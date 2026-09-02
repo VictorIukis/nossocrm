@@ -1011,7 +1011,12 @@ async function autoCreateDeal(
     console.log(`[Webhook] Auto-created deal: ${newDeal.id} for contact ${params.contactId}`);
 
     // Registrar activity para o usuário entender que o lead veio do canal de mensagens
-    const sourceLabel = (params.source || "whatsapp") === "instagram" ? "Instagram" : "WhatsApp";
+    //
+    // `sourceLabel` ja foi calculado acima, no mesmo escopo. Redeclarar aqui era
+    // erro de sintaxe: a funcao inteira nao carregava, e o Supabase respondia
+    // BOOT_ERROR a qualquer chamada. Ou seja, o webhook do WhatsApp oficial
+    // nunca funcionou -- so nao aparecia porque a funcao nunca tinha sido
+    // publicada.
     await supabase.from("deal_activities").insert({
       deal_id: newDeal.id,
       organization_id: params.organizationId,
