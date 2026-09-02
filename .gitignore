@@ -93,5 +93,14 @@ test/*.md
 .sb-pentest-*.log
 debug_navigation_failed_*.png
 *.png
+
+# Excecao: os PNG da marca sao parte do produto, nao lixo de captura de tela.
+# A regra *.png acima existe para nao versionar screenshot de depuracao, e
+# acabava engolindo em silencio a logo e os icones do app: o git add nao
+# reclama de arquivo ignorado, entao eles ficavam de fora do commit e viravam
+# 404 em producao, com a logo quebrada na barra lateral.
+!public/marca/**
+!public/icons/**
+!public/favicon.ico
 .env*.local
 .dmux/
