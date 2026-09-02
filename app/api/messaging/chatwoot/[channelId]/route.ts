@@ -123,6 +123,13 @@ export async function POST(
   const conversaChatwoot = evento.conversation?.id;
   if (!conversaChatwoot) return json(200, { ok: true, ignorado: 'sem conversa' });
 
+  // Duas identidades diferentes, que estavam sendo confundidas:
+  //  - `remetente` e sempre o CLIENTE, dono da conversa. E dele que saem o
+  //    telefone, o contato e o nome da conversa.
+  //  - o AUTOR da mensagem muda: na entrada e o cliente, na saida e quem
+  //    respondeu (a Sofia, outra IA de atendimento, ou uma pessoa do time).
+  // Usar o remetente como autor fazia a resposta da Sofia aparecer assinada com
+  // o nome do proprio cliente.
   const remetente = evento.conversation?.meta?.sender || evento.sender;
   const telefone = normalizarTelefone(remetente?.phone_number);
   const entrada = evento.message_type === 'incoming' || evento.message_type === 0;
@@ -215,7 +222,12 @@ export async function POST(
           content: { type: 'text', text: evento.content || '' },
           status: entrada ? 'delivered' : 'sent',
           delivered_at: quando.toISOString(),
-          sender_name: remetente?.name || null,
+          sender_name: (entrada ? remetente?.name : evento.sender?.name) || null,
+          // 'contact' quando quem falou foi o cliente; 'agent' para o que saiu
+          // do Chatwoot, seja uma pessoa do time ou uma das IAs de atendimento.
+          // O CRM nao tem como distinguir as duas daqui, e fingir que tem seria
+          // pior do que nao dizer.
+          sender_type: entrada ? 'contact' : 'agent',
           metadata: { chatwoot_message_id: evento.id, chatwoot_conversation_id: conversaChatwoot },
         },
         { onConflict: 'conversation_id,external_id' }
