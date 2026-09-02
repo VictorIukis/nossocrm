@@ -45,6 +45,8 @@ interface TemplateParameterInput {
  * Returns: MessagingMessage (the created message)
  */
 export async function POST(request: NextRequest) {
+  // Guardado fora do try para o catch conseguir marcar a mensagem como falha.
+  let idDaMensagem: string | null = null;
   // CORS check
   if (!isAllowedOrigin(request)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
@@ -175,6 +177,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update to queued status
+    idDaMensagem = dbMessage.id;
     await supabase.from('messaging_messages').update({ status: 'queued' }).eq('id', dbMessage.id);
 
     // Build provider params
@@ -255,10 +258,30 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(transformMessage(updatedMessage as DbMessagingMessage));
   } catch (error) {
-    console.error(
-      '[messaging/messages/send-template]',
-      error instanceof Error ? error.message : 'Unknown error'
-    );
+    const motivo = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[messaging/messages/send-template]', motivo);
+
+    // Mesma armadilha do envio comum: a mensagem ja esta em 'queued' quando o
+    // envio comeca. Sem isto ela fica presa nesse estado e, na conversa,
+    // aparece igual a uma mensagem que saiu.
+    if (idDaMensagem) {
+      try {
+        const sb = await createClient();
+        await sb
+          .from('messaging_messages')
+          .update({
+            status: 'failed',
+            error_code: 'ENVIO_INTERROMPIDO',
+            error_message: motivo.slice(0, 500),
+            failed_at: new Date().toISOString(),
+          })
+          .eq('id', idDaMensagem)
+          .eq('status', 'queued');
+      } catch (e) {
+        console.error('[messaging/messages/send-template] falhei ao marcar falha:', e);
+      }
+    }
+
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }

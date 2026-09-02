@@ -164,10 +164,29 @@ export async function POST(
       transformMessage(updatedMessage as DbMessagingMessage)
     );
   } catch (error) {
-    console.error(
-      '[messaging/messages/retry]',
-      error instanceof Error ? error.message : 'Unknown error'
-    );
+    const motivo = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[messaging/messages/retry]', motivo);
+
+    // A mensagem ja foi marcada como 'queued' antes do envio. Se o envio
+    // estourar, ela fica presa nesse estado para sempre -- e na conversa
+    // aparece igual a uma mensagem enviada. Melhor dizer que falhou.
+    try {
+      const { messageId } = await params;
+      const sb = await createClient();
+      await sb
+        .from('messaging_messages')
+        .update({
+          status: 'failed',
+          error_code: 'ENVIO_INTERROMPIDO',
+          error_message: motivo.slice(0, 500),
+          failed_at: new Date().toISOString(),
+        })
+        .eq('id', messageId)
+        .eq('status', 'queued');
+    } catch (e) {
+      console.error('[messaging/messages/retry] falhei ao marcar falha:', e);
+    }
+
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }
