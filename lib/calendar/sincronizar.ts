@@ -23,6 +23,7 @@ import {
   chamarGoogle,
   atividadeParaEvento,
   eventoParaAtividade,
+  enderecoPublico,
   type Conexao,
   type EventoGoogle,
 } from './google';
@@ -347,7 +348,7 @@ export async function sincronizar(conexao: Conexao): Promise<Resultado> {
 export async function abrirCanalDeAvisos(
   conexao: Conexao & { channel_token?: string | null }
 ): Promise<{ ok: boolean; motivo?: string }> {
-  const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, '');
+  const base = enderecoPublico();
 
   // O Google exige endereço público em HTTPS com domínio verificado. Em
   // desenvolvimento isso não existe, e falhar aqui não pode impedir o resto de

@@ -9,13 +9,13 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
-import { credenciais, trocarCodigoPorToken } from '@/lib/calendar/google';
+import { credenciais, trocarCodigoPorToken, enderecoPublico } from '@/lib/calendar/google';
 import { COOKIE_ESTADO } from '../conectar/route';
 
 export const runtime = 'nodejs';
 
 function voltar(mensagem: string, ok = false) {
-  const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, '') || '';
+  const base = enderecoPublico();
   const url = new URL(`${base}/agenda`);
   url.searchParams.set(ok ? 'conectado' : 'erro', mensagem);
   return NextResponse.redirect(url);

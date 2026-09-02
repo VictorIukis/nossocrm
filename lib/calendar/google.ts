@@ -45,10 +45,7 @@ export function credenciais(): CredenciaisGoogle | null {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret) return null;
 
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, '') ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
-
+  const base = enderecoPublico();
   if (!base) return null;
 
   return {
@@ -56,6 +53,32 @@ export function credenciais(): CredenciaisGoogle | null {
     clientSecret,
     redirectUri: `${base}/api/calendar/google/retorno`,
   };
+}
+
+/**
+ * Endereço público e ESTÁVEL desta instalação.
+ *
+ * A ordem importa e custou um erro em producao. `VERCEL_URL` aponta para a
+ * versao publicada, nao para o site: ela muda a cada deploy
+ * (`...-goni5ibze-...vercel.app`). Usada aqui, produz um endereco de retorno
+ * diferente a cada publicacao -- que e impossivel de cadastrar no Google, e o
+ * sintoma e `redirect_uri_mismatch` sem explicacao aparente.
+ *
+ * `VERCEL_PROJECT_PRODUCTION_URL` e o dominio de producao, que nao muda. Fica na
+ * frente de VERCEL_URL, e NEXT_PUBLIC_APP_URL na frente das duas, para quem usa
+ * dominio proprio.
+ */
+export function enderecoPublico(): string {
+  const configurado = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '');
+  if (configurado) return configurado;
+
+  const producao = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (producao) return `https://${producao}`;
+
+  const daVersao = process.env.VERCEL_URL?.trim();
+  if (daVersao) return `https://${daVersao}`;
+
+  return '';
 }
 
 /** Monta o endereço para onde a pessoa é enviada para autorizar. */
