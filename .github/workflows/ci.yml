@@ -5,7 +5,7 @@
 #   build  — Next.js production build (runs only on push to main)
 #
 # Cache strategy:
-#   - pnpm store: keyed on pnpm-lock.yaml hash via actions/setup-node cache: "pnpm"
+#   - npm cache: keyed on package-lock.json hash via actions/setup-node cache: "npm"
 #   - .next/cache: keyed on source hash, restores on prefix match
 #
 # Security: no untrusted event inputs are interpolated into run: commands.
@@ -28,7 +28,6 @@ concurrency:
 
 env:
   NODE_VERSION: "20"
-  PNPM_VERSION: "9"
 
 jobs:
   # ─── commitlint ────────────────────────────────────────────────────────────
@@ -71,28 +70,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
+          cache: "npm"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Lint (ESLint — zero warnings)
-        run: pnpm lint
+        run: npm run lint
 
       - name: Typecheck (tsc --noEmit)
-        run: pnpm typecheck
+        run: npm run typecheck
 
       - name: Tests (Vitest)
-        run: pnpm test:run
+        run: npm run test:run
 
   # ─── build ────────────────────────────────────────────────────────────────
   # Full Next.js production build. Runs only on pushes to main.
@@ -108,32 +102,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
+          cache: "npm"
 
       - name: Restore Next.js build cache
         uses: actions/cache@v4
         with:
           path: |
             ${{ github.workspace }}/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.css') }}
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.css') }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
             ${{ runner.os }}-nextjs-
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Build
-        run: pnpm build
+        run: npm run build
         env:
           # Next.js build requires these to be present even if not used at runtime.
           # Real values come from Vercel project settings — these are build-time only.
