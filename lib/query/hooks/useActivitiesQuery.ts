@@ -186,6 +186,8 @@ export const useCreateActivity = () => {
       // Invalidate to ensure Realtime updates are picked up
       // This is a no-op if data is already fresh, but ensures consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.activities.all });
+
+      empurrarParaGoogle();
     },
     onError: (_error, _params, context) => {
       if (context?.previousActivities) {
@@ -198,6 +200,22 @@ export const useCreateActivity = () => {
     },
   });
 };
+
+/**
+ * Pede ao servidor que mande para o Google o que acabou de ser gravado.
+ *
+ * Um gatilho no banco ja garante que nada se perde -- a atividade entra numa
+ * fila e a rotina diaria drena. Esta chamada so ANTECIPA: quem marca uma reuniao
+ * espera ve-la no celular em segundos, nao amanha.
+ *
+ * De proposito sem await e sem tratamento de erro na tela: se o Google estiver
+ * fora do ar, a atividade ja esta salva no CRM e a fila cuida do resto. Fazer o
+ * salvamento depender disso seria trocar uma funcionalidade solida por uma
+ * fragil.
+ */
+function empurrarParaGoogle(): void {
+  void fetch('/api/calendar/google/enviar', { method: 'POST' }).catch(() => {});
+}
 
 /**
  * Hook to update an activity
@@ -225,6 +243,9 @@ export const useUpdateActivity = () => {
       if (context?.previousActivities) {
         queryClient.setQueryData(queryKeys.activities.lists(), context.previousActivities);
       }
+    },
+    onSuccess: () => {
+      empurrarParaGoogle();
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.activities.all });
@@ -259,6 +280,11 @@ export const useToggleActivity = () => {
         queryClient.setQueryData(queryKeys.activities.lists(), context.previousActivities);
       }
     },
+    onSuccess: () => {
+      // Arquivar aqui tem que apagar o evento na agenda da pessoa. Sem isto, o
+      // compromisso cancelado continuaria apitando no celular dela.
+      empurrarParaGoogle();
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.activities.all });
     },
@@ -289,6 +315,11 @@ export const useDeleteActivity = () => {
       if (context?.previousActivities) {
         queryClient.setQueryData(queryKeys.activities.lists(), context.previousActivities);
       }
+    },
+    onSuccess: () => {
+      // Arquivar aqui tem que apagar o evento na agenda da pessoa. Sem isto, o
+      // compromisso cancelado continuaria apitando no celular dela.
+      empurrarParaGoogle();
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.activities.all });
