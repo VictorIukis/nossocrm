@@ -282,7 +282,22 @@ export async function enviarAtividade(
         .eq('id', a.id);
       return { ok: false, motivo: 'O evento não existe mais no Google; será recriado.' };
     }
-    return { ok: false, motivo: `Google respondeu ${resposta.status}.` };
+
+    // Guardar o MOTIVO, e nao so o numero.
+    //
+    // "Google respondeu 400" nao permite consertar nada: o 400 pode ser data
+    // invalida, campo obrigatorio faltando ou fuso mal formado, e cada um pede
+    // uma correcao diferente. O Google diz qual e; jogar isso fora transforma
+    // um ajuste de minutos numa investigacao.
+    const detalhe = await resposta
+      .json()
+      .then((e: { error?: { message?: string } }) => e?.error?.message || '')
+      .catch(() => '');
+
+    return {
+      ok: false,
+      motivo: `Google respondeu ${resposta.status}${detalhe ? `: ${detalhe}` : '.'}`,
+    };
   }
 
   const evento = (await resposta.json()) as EventoGoogle;
