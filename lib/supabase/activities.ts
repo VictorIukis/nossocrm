@@ -54,8 +54,12 @@ export interface DbActivity {
   description: string | null;
   /** Tipo (CALL, MEETING, EMAIL, TASK). */
   type: string;
-  /** Data/hora agendada. */
+  /** Data/hora agendada (início). */
   date: string;
+  /** Fim do compromisso, quando houver. */
+  ends_at?: string | null;
+  /** Local, quando houver. */
+  location?: string | null;
   /** Se a atividade foi concluída. */
   completed: boolean;
   /** ID do deal associado. */
@@ -90,6 +94,8 @@ const transformActivity = (db: DbActivityWithDeal): Activity => ({
   description: db.description || undefined,
   type: db.type as Activity['type'],
   date: db.date,
+  endsAt: db.ends_at || undefined,
+  location: db.location || undefined,
   completed: db.completed,
   dealId: db.deal_id || '',
   contactId: db.contact_id || undefined,
@@ -112,6 +118,8 @@ const transformActivityToDb = (activity: Partial<Activity>): Partial<DbActivity>
   if (activity.description !== undefined) db.description = activity.description || null;
   if (activity.type !== undefined) db.type = activity.type;
   if (activity.date !== undefined) db.date = activity.date;
+  if (activity.endsAt !== undefined) db.ends_at = activity.endsAt || null;
+  if (activity.location !== undefined) db.location = activity.location || null;
   if (activity.completed !== undefined) db.completed = activity.completed;
   if (activity.dealId !== undefined) db.deal_id = sanitizeUUID(activity.dealId);
   if (activity.contactId !== undefined) db.contact_id = sanitizeUUID(activity.contactId);

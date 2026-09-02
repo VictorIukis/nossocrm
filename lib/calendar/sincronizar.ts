@@ -324,10 +324,31 @@ export async function enviarPendentes(conexao: Conexao, limite = 100): Promise<n
   return enviados;
 }
 
-/** Uma rodada completa nos dois sentidos. */
+/**
+ * Uma rodada completa nos dois sentidos.
+ *
+ * Abre o canal de avisos quando ainda nao ha um. Eu tinha escrito a funcao que
+ * abre o canal e esquecido de chama-la em algum lugar: a conexao ficava
+ * funcionando so na direcao CRM → Google, e mudanca feita na agenda so
+ * apareceria aqui no dia seguinte, quando a rotina diaria rodasse. Ninguem
+ * associaria as duas coisas.
+ */
 export async function sincronizar(conexao: Conexao): Promise<Resultado> {
   const r = await puxarDoGoogle(conexao);
   r.enviados = await enviarPendentes(conexao);
+
+  const semCanal =
+    !conexao.channel_id ||
+    !conexao.channel_expires_at ||
+    new Date(conexao.channel_expires_at).getTime() < Date.now();
+
+  if (semCanal) {
+    // Falhar aqui nao invalida a sincronizacao que acabou de acontecer: sem o
+    // canal, o "sincronizar agora" e a rotina diaria continuam dando conta.
+    const canal = await abrirCanalDeAvisos(conexao);
+    if (!canal.ok && canal.motivo) r.erros.push(canal.motivo);
+  }
+
   return r;
 }
 

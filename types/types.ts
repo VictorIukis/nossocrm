@@ -273,7 +273,15 @@ export interface Activity {
   type: 'CALL' | 'MEETING' | 'EMAIL' | 'TASK' | 'NOTE' | 'STATUS_CHANGE';
   title: string;
   description?: string;
+  /** Início do compromisso. */
   date: string;
+  /**
+   * Fim do compromisso. Opcional: tarefa e ligação costumam não ter.
+   * Quando vazio, a agenda assume uma duração padrão ao exportar.
+   */
+  endsAt?: string;
+  /** Local do compromisso, quando houver. */
+  location?: string;
   user: {
     name: string;
     avatar: string;

@@ -64,6 +64,7 @@ export const useActivitiesController = () => {
     type: 'CALL' as Activity['type'],
     date: new Date().toISOString().split('T')[0],
     time: '09:00',
+    endTime: '',
     description: '',
     dealId: '',
   });
@@ -118,6 +119,7 @@ export const useActivitiesController = () => {
       type: 'CALL',
       date: new Date().toISOString().split('T')[0],
       time: '09:00',
+      endTime: '',
       description: '',
       dealId: '',
     });
@@ -132,6 +134,7 @@ export const useActivitiesController = () => {
       type: activity.type,
       date: date.toISOString().split('T')[0],
       time: date.toTimeString().slice(0, 5),
+      endTime: activity.endsAt ? new Date(activity.endsAt).toTimeString().slice(0, 5) : '',
       description: activity.description || '',
       dealId: activity.dealId,
     });
@@ -172,6 +175,16 @@ export const useActivitiesController = () => {
     e.preventDefault();
 
     const date = new Date(`${formData.date}T${formData.time}`);
+
+    // Fim opcional. Quando o horário informado é MENOR que o início, o
+    // compromisso atravessa a meia-noite -- some um dia, senão o evento
+    // nasceria com duração negativa e o Google recusaria.
+    let endsAt: string | undefined;
+    if (formData.endTime) {
+      const fim = new Date(`${formData.date}T${formData.endTime}`);
+      if (fim.getTime() <= date.getTime()) fim.setDate(fim.getDate() + 1);
+      endsAt = fim.toISOString();
+    }
     const selectedDeal = formData.dealId ? dealsById.get(formData.dealId) : undefined;
     const selectedContact = selectedDeal?.contactId ? contactsById.get(selectedDeal.contactId) : undefined;
     const clientCompanyId = selectedDeal?.clientCompanyId || selectedContact?.clientCompanyId || undefined;
@@ -186,6 +199,7 @@ export const useActivitiesController = () => {
             type: formData.type,
             description: formData.description,
             date: date.toISOString(),
+            endsAt,
             dealId: formData.dealId || '',
             contactId: selectedContact?.id || '',
             clientCompanyId,
@@ -207,6 +221,7 @@ export const useActivitiesController = () => {
             type: formData.type,
             description: formData.description,
             date: date.toISOString(),
+            endsAt,
             dealId: formData.dealId || '',
             contactId: selectedContact?.id || '',
             clientCompanyId,

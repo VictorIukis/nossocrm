@@ -7,6 +7,8 @@ interface ActivityFormData {
   type: Activity['type'];
   date: string;
   time: string;
+  /** Hora de término. Vazio é válido: nem todo compromisso tem fim marcado. */
+  endTime: string;
   description: string;
   dealId: string;
 }
@@ -118,15 +120,28 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                Negócio Relacionado
+                Negócio Relacionado{' '}
+                <span className="font-medium normal-case text-slate-400">(opcional)</span>
               </label>
+              {/*
+                Era obrigatório ao criar e opcional ao editar, e o rótulo não
+                avisava. Na prática, travava a criação de qualquer compromisso
+                que não tenha negócio: reunião interna, prospecção, agenda
+                pessoal. O banco sempre aceitou sem negócio, e o controlador já
+                trata o campo vazio -- a trava existia só aqui.
+              */}
               <select
-                required={!editingActivity}
                 className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
                 value={formData.dealId}
                 onChange={e => setFormData({ ...formData, dealId: e.target.value })}
               >
-                <option value="">Selecione...</option>
+                {/*
+                  "Selecione..." não dizia que dá para deixar em branco, então
+                  a lista parecia obrigatória mesmo depois de deixar de ser.
+                  Nomear a opção é o que torna o compromisso sem negócio -- uma
+                  reunião interna, um médico, um almoço -- uma escolha visível.
+                */}
+                <option value="">Nenhum · compromisso pessoal</option>
                 {deals.map(deal => (
                   <option key={deal.id} value={deal.id}>
                     {deal.title}
@@ -136,7 +151,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data</label>
               <input
@@ -148,13 +163,29 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Hora</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Início</label>
               <input
                 required
                 type="time"
                 className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
                 value={formData.time}
                 onChange={e => setFormData({ ...formData, time: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Término</label>
+              {/*
+                Sem hora de término, todo compromisso exportado para o Google
+                virava meia hora, independente do que fosse. Continua opcional
+                porque ligação e tarefa costumam não ter fim marcado.
+              */}
+              <input
+                type="time"
+                // O navegador barra fim anterior ao início quando é o mesmo dia.
+                min={formData.time || undefined}
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                value={formData.endTime}
+                onChange={e => setFormData({ ...formData, endTime: e.target.value })}
               />
             </div>
           </div>
