@@ -96,14 +96,14 @@ export async function requireAITaskContext(req: Request): Promise<AITaskContext>
     throw new AITaskHttpError(403, 'AI_DISABLED', 'IA desativada pela organização. Um admin pode ativar em Configurações → Central de I.A.');
   }
 
-  const { provider } = resolverProvedor(orgSettings);
-  const apiKey: string | null = resolverProvedor(orgSettings).apiKey || null;
+  const { provider, apiKey: chaveDoProvedor } = resolverProvedor(orgSettings);
+  const apiKey: string | null = chaveDoProvedor || null;
 
   if (orgError || !apiKey) {
     throw new AITaskHttpError(
       400,
       'AI_KEY_NOT_CONFIGURED',
-      'API key não configurada para Google Gemini. Configure em Configurações → Inteligência Artificial.'
+      'Chave de API não configurada. Configure em Configurações → Central de I.A.'
     );
   }
 

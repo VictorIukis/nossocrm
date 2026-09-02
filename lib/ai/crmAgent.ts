@@ -1,5 +1,4 @@
 import { ToolLoopAgent, stepCountIs } from 'ai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { CRMCallOptionsSchema, type CRMCallOptions } from '@/types/ai';
 import { createCRMTools } from './tools';
 import { formatPriorityPtBr } from '@/lib/utils/priority';
@@ -8,7 +7,7 @@ import { nomeDoAssistente } from '@/lib/marca';
 
 // tipo vem de lib/ai/config: duplicar aqui fez este arquivo continuar
 // acreditando que so existe Google mesmo depois de a troca ser feita.
-import type { AIProvider } from './config';
+import { getModel, type AIProvider } from './config';
 
 function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -240,8 +239,12 @@ export async function createCRMAgent(
         provider,
     });
 
-    const google = createGoogleGenerativeAI({ apiKey });
-    const model = google(modelId);
+    // O provedor chega por parametro e precisa ser respeitado. Ate aqui ele era
+    // recebido, registrado no log acima e ignorado: a linha seguinte criava um
+    // cliente do Google de qualquer jeito. Com a Anthropic configurada, o chat
+    // entregava a chave sk-ant- ao Google e o usuario via "API key not valid",
+    // uma mensagem do provedor errado.
+    const model = getModel(provider, apiKey, modelId);
 
     // Create tools with context injected
     const tools = createCRMTools(context, userId);

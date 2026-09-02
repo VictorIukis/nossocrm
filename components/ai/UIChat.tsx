@@ -318,10 +318,14 @@ export function UIChat({
         // do que inventar causa.
         const isToolApproval = /No tool output found for function call/i.test(msg);
 
-        const isOpenAIServerError =
+        // Falha do lado do provedor, seja ele qual for. Antes isto se chamava
+        // "erro da OpenAI" e a mensagem mandava trocar para gpt-4o, um modelo
+        // que este sistema nao oferece.
+        const ehFalhaDoProvedor =
             has(/\bserver_error\b/i) ||
             has(/"type"\s*:\s*"server_error"/i) ||
-            (has(/openai/i) && has(/\b5\d\d\b/));
+            has(/\boverloaded_error\b/i) ||
+            (has(/anthropic|openai|googleapis/i) && has(/\b5\d\d\b/));
 
         const isRateLimit =
             has(/rate[_ -]?limit/i) ||
@@ -341,7 +345,7 @@ export function UIChat({
         return {
             requestId,
             isToolApproval,
-            isOpenAIServerError,
+            ehFalhaDoProvedor,
             isRateLimit,
             isAuth,
             isModelNotFound,
@@ -371,9 +375,9 @@ export function UIChat({
             return 'A IA está limitando requisições (rate limit). Aguarde alguns segundos e tente novamente.';
         }
 
-        if (parsed.isOpenAIServerError) {
+        if (parsed.ehFalhaDoProvedor) {
             const id = parsed.requestId ? ` (ID: ${parsed.requestId})` : '';
-            return `A OpenAI parece estar instável no momento (erro interno). Tente novamente em alguns segundos. Se persistir, troque para um modelo mais estável (ex.: gpt-4o) em Configurações → IA${id}.`;
+            return `O provedor de IA está instável no momento. Isso costuma passar em alguns segundos, é só tentar de novo${id}.`;
         }
 
         // Fallback: manter a mensagem original (útil p/ debug), mas sem deixar 100% “crua”.

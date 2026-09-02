@@ -102,7 +102,7 @@ const APINotConfigured: React.FC = () => {
         {/* Description */}
         <p className="text-slate-600 dark:text-slate-400 mb-8 leading-relaxed">
           Para usar o assistente de IA, você precisa configurar uma chave de API.
-          Suportamos <strong className="text-slate-800 dark:text-slate-200">Google Gemini</strong>, <strong className="text-slate-800 dark:text-slate-200">OpenAI</strong> e <strong className="text-slate-800 dark:text-slate-200">Anthropic</strong>.
+          O sistema usa o <strong className="text-slate-800 dark:text-slate-200">Claude, da Anthropic</strong>, e também aceita o Google Gemini.
         </p>
 
         {/* Card with instructions */}

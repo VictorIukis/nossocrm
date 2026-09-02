@@ -170,7 +170,7 @@ export function getConsentText(): { title: string; description: string; version:
     title: 'Consentimento para Uso de IA',
     description: `Ao aceitar, você autoriza:
 
-• O processamento de seus dados e contatos por APIs de Inteligência Artificial externas (Google Gemini, OpenAI, Anthropic)
+• O processamento de seus dados e contatos pelo provedor de IA configurado nesta organização (Anthropic, ou Google se assim configurado)
 • Análise de leads, sugestões automatizadas e personalização de comunicações
 
 Observação sobre ditado por voz (microfone):
