@@ -5,13 +5,12 @@ import { streamText, tool, UIMessage, convertToModelMessages, stepCountIs } from
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getModel, resolverProvedor } from '@/lib/ai/config';
-import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
+import { normalizarModelo } from '@/lib/ai/defaults';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { MARCA } from '@/lib/marca';
 
 export const maxDuration = 60;
 
-type AIProvider = 'google';
 
 /**
  * Handler HTTP `POST` deste endpoint (Next.js Route Handler).
@@ -74,19 +73,18 @@ export async function POST(req: Request) {
         );
     }
 
-    const provider: AIProvider = 'google';
+    const { provider, apiKey: chaveDoProvedor } = resolverProvedor(orgSettings);
     const modelId: string | null = orgSettings?.ai_model ?? null;
-    const apiKey: string | null = resolverProvedor(orgSettings).apiKey || null;
+    const apiKey: string | null = chaveDoProvedor || null;
 
     if (!apiKey) {
         return new Response(
-            'API key não configurada para Google Gemini. Configure em Configurações → Inteligência Artificial.',
+            'Chave de API não configurada. Configure em Configurações → Inteligência Artificial.',
             { status: 400 }
         );
     }
 
-    const resolvedModelId =
-        modelId || AI_DEFAULT_MODELS[provider as keyof typeof AI_DEFAULT_MODELS] || AI_DEFAULT_MODELS.google;
+    const resolvedModelId = normalizarModelo(provider, modelId);
 
     const model = getModel(provider, apiKey, resolvedModelId);
 

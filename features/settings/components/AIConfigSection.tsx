@@ -4,6 +4,7 @@ import { Bot, Key, CheckCircle, AlertCircle, Loader2, Save, Trash2, ChevronDown,
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
 import type { AIModelInfo } from '@/app/api/ai/models/route';
+import { normalizarModelo } from '@/lib/ai/defaults';
 
 /**
  * Confere a chave pelo servidor.
@@ -134,6 +135,13 @@ export const AIConfigSection: React.FC = () => {
             setValidationStatus('valid');
             try {
                 await setAiApiKey(localApiKey);
+
+                // Se o modelo salvo for de outro provedor (sobra de configuração
+                // anterior), a tela mostraria um Gemini ao lado de uma chave da
+                // Anthropic. Alinha ao provedor atual.
+                const corrigido = normalizarModelo('anthropic', aiModel);
+                if (corrigido !== aiModel) await setAiModel(corrigido);
+
                 // UX: após salvar uma key válida, colapsar LGPD automaticamente.
                 setLgpdExpanded(false);
                 showToast('Chave de API validada e salva!', 'success');

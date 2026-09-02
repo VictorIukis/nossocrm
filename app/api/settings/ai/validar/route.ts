@@ -12,6 +12,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
+import { normalizarModelo } from '@/lib/ai/defaults';
 
 export const runtime = 'nodejs';
 
@@ -44,6 +45,11 @@ export async function POST(req: Request) {
     return json({ valid: false, error: 'Chave muito curta' });
   }
 
+  // Ao trocar de provedor, o modelo antigo continua salvo no banco e chega aqui.
+  // Sem esta linha, a chave da Anthropic seria testada contra um modelo do
+  // Google e o "modelo nao encontrado" apareceria como chave invalida.
+  const modelo = normalizarModelo(provedor, corpo?.model);
+
   try {
     if (provedor === 'anthropic') {
       // Uma mensagem minima e o teste mais barato possivel: 1 token de saida.
@@ -55,7 +61,7 @@ export async function POST(req: Request) {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          model: corpo?.model || 'claude-sonnet-5',
+          model: modelo,
           max_tokens: 1,
           messages: [{ role: 'user', content: 'oi' }],
         }),
@@ -71,14 +77,14 @@ export async function POST(req: Request) {
       if (r.status === 401) return json({ valid: false, error: 'Chave recusada pela Anthropic.' });
       if (r.status === 403) return json({ valid: false, error: 'Chave sem permissão para este modelo.' });
       if (r.status === 404) {
-        return json({ valid: false, error: `Modelo "${corpo?.model}" não existe nesta conta.` });
+        return json({ valid: false, error: `Modelo "${modelo}" não existe nesta conta.` });
       }
       return json({ valid: false, error: erro?.error?.message || `Anthropic respondeu ${r.status}.` });
     }
 
     // Google, mantido para quem ainda usar Gemini.
     const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${corpo?.model || 'gemini-2.0-flash'}:generateContent?key=${chave}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${chave}`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

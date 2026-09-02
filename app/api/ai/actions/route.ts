@@ -13,7 +13,7 @@
 // -> 200 { result?: any, error?: string, consentType?: string, retryAfter?: number }
 
 import { generateText, Output } from 'ai';
-import { getModel, type AIProvider, resolverProvedor } from '@/lib/ai/config';
+import { getModel, resolverProvedor } from '@/lib/ai/config';
 import { SECURITY_PREAMBLE } from '@/lib/ai/agent/agent.service';
 import { sanitizeIncomingMessage } from '@/lib/ai/agent/input-filter';
 import { z } from 'zod';
@@ -233,8 +233,8 @@ export async function POST(req: Request) {
   }
 
   // Frontend expects "AI consent required" as a *payload* error.
-  const provider: AIProvider = 'google';
-  const apiKey: string | null = resolverProvedor(orgSettings).apiKey || null;
+  const { provider, apiKey: chaveDoProvedor } = resolverProvedor(orgSettings);
+  const apiKey: string | null = chaveDoProvedor || null;
 
   if (orgError || !apiKey) {
     return json<AIActionResponse>({ error: 'AI consent required', consentType: 'AI_CONSENT' }, 200);

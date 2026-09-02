@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { generateText } from 'ai';
-import { getModel } from '@/lib/ai/config';
+import { getModel, resolverProvedor } from '@/lib/ai/config';
 import {
   buildSystemPromptFromPatterns,
   getDefaultLearnedPatterns,
@@ -52,7 +52,7 @@ export async function GET() {
     const { data: orgSettings } = await supabase
       .from('organization_settings')
       .select(
-        'ai_config_mode, ai_template_id, ai_learned_patterns, ai_model, ai_google_key, ai_enabled'
+        'ai_config_mode, ai_template_id, ai_learned_patterns, ai_model, ai_provider, ai_google_key, ai_anthropic_key, ai_enabled'
       )
       .eq('organization_id', profile.organization_id)
       .single();
@@ -89,7 +89,7 @@ export async function GET() {
       'learnedCriteria' in (orgSettings.ai_learned_patterns as object);
 
     // Check API key
-    const hasApiKey = !!orgSettings?.ai_google_key;
+    const hasApiKey = !!resolverProvedor(orgSettings).apiKey;
 
     return NextResponse.json({
       status: 'ok',
@@ -101,7 +101,7 @@ export async function GET() {
         learnedPatternsKeys: hasLearnedPatterns
           ? Object.keys(orgSettings?.ai_learned_patterns as object)
           : [],
-        provider: 'google',
+        provider: resolverProvedor(orgSettings).provider,
         model: orgSettings?.ai_model,
         hasApiKey,
         enabled: orgSettings?.ai_enabled !== false,
@@ -198,19 +198,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get API key
-    const provider = orgSettings.ai_provider || 'google';
-    let apiKey = '';
-    switch (provider) {
-      case 'google':
-        apiKey = orgSettings.ai_google_key || '';
-        break;
-      case 'openai':
-        apiKey = orgSettings.ai_openai_key || '';
-        break;
-      case 'anthropic':
-        apiKey = orgSettings.ai_anthropic_key || '';
-        break;
-    }
+    const { provider, apiKey } = resolverProvedor(orgSettings);
 
     if (!apiKey) {
       return NextResponse.json({ error: 'No API key configured' }, { status: 400 });

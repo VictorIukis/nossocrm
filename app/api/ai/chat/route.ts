@@ -11,7 +11,7 @@ import { isAIFeatureEnabled } from '@/lib/ai/features/server';
 
 export const maxDuration = 60;
 
-import { resolverProvedor, type AIProvider } from '@/lib/ai/config';
+import { resolverProvedor } from '@/lib/ai/config';
 
 function asOptionalString(v: unknown): string | undefined {
     return typeof v === 'string' ? v : undefined;
@@ -153,13 +153,16 @@ export async function POST(req: Request) {
         );
     }
 
-    const provider: AIProvider = 'google';
+    // Provedor e chave saem juntos da mesma leitura: fixar um e ler o outro do
+    // banco foi exatamente o que fez uma chave da Anthropic ser entregue a um
+    // cliente do Google.
+    const { provider, apiKey: chaveDoProvedor } = resolverProvedor(orgSettings);
     const modelId: string | null = orgSettings?.ai_model ?? null;
-    const apiKey: string | null = resolverProvedor(orgSettings).apiKey || null;
+    const apiKey: string | null = chaveDoProvedor || null;
 
     if (!apiKey) {
         return new Response(
-            'API key não configurada para Google Gemini. Configure em Configurações → Inteligência Artificial.',
+            'Chave de API não configurada. Configure em Configurações → Inteligência Artificial.',
             { status: 400 }
         );
     }

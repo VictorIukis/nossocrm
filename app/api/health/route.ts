@@ -12,6 +12,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { AI_DEFAULT_PROVIDER } from '@/lib/ai/defaults';
 
 interface HealthCheckResult {
   status: 'healthy' | 'degraded' | 'unhealthy';
@@ -24,7 +25,7 @@ interface HealthCheckResult {
       error?: string;
     };
     ai_provider: {
-      status: 'ok' | 'error';
+      status: 'ok' | 'error' | 'unknown';
       provider: string;
       error?: string;
     };
@@ -44,7 +45,7 @@ export async function GET(): Promise<NextResponse<HealthCheckResult>> {
   const startTime = Date.now();
   const components: HealthCheckResult['components'] = {
     database: { status: 'error' },
-    ai_provider: { status: 'error', provider: 'google' },
+    ai_provider: { status: 'unknown', provider: AI_DEFAULT_PROVIDER },
     webhooks: { status: 'unknown', edge_functions: [] },
   };
 
@@ -89,33 +90,29 @@ export async function GET(): Promise<NextResponse<HealthCheckResult>> {
   }
 
   // 2. Check AI Provider Configuration
-  try {
-    const aiApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  //
+  // A chave de IA vive em organization_settings, por organizacao, e nao em
+  // variavel de ambiente. A versao anterior procurava GOOGLE_GENERATIVE_AI_API_KEY
+  // no ambiente, nunca achava, e derrubava a saude geral da instancia para
+  // "unhealthy" -- um alarme que dispara sempre nao avisa nada.
+  //
+  // Sem organizacao no contexto, o mais honesto e reportar a chave de ambiente
+  // como opcional e nao deixar isso reprovar a instancia.
+  const chaveDeAmbiente =
+    process.env.ANTHROPIC_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
-    if (!aiApiKey) {
-      throw new Error('Google AI API key not configured');
-    }
-
-    // Validate API key format (basic check)
-    if (aiApiKey.length < 20) {
-      throw new Error('Invalid API key format');
-    }
-
-    components.ai_provider = {
-      status: 'ok',
-      provider: 'google',
-    };
-  } catch (err) {
-    components.ai_provider = {
-      status: 'error',
-      provider: 'google',
-      error: err instanceof Error ? err.message : 'Unknown AI provider error',
-    };
-  }
+  components.ai_provider = chaveDeAmbiente
+    ? { status: 'ok', provider: AI_DEFAULT_PROVIDER }
+    : {
+        status: 'unknown',
+        provider: AI_DEFAULT_PROVIDER,
+        error: 'Chave configurada por organização no banco, não no ambiente.',
+      };
 
   // 3. Determine overall status
   const dbOk = components.database.status === 'ok';
-  const aiOk = components.ai_provider.status === 'ok';
+  // 'unknown' nao e falha: so significa que a chave nao esta no ambiente.
+  const aiOk = components.ai_provider.status !== 'error';
 
   if (dbOk && aiOk) {
     overallStatus = 'healthy';

@@ -10,31 +10,10 @@
 
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER, AI_COLUNA_DA_CHAVE } from './defaults';
+import { AI_DEFAULT_PROVIDER, AI_COLUNA_DA_CHAVE, normalizarModelo } from './defaults';
 
 export type AIProvider = 'anthropic' | 'google';
 
-/**
- * Modelos aceitos por provedor.
- *
- * A lista existe como trava: sem ela, um valor errado gravado no banco vira uma
- * chamada a um modelo inexistente e o erro so aparece em producao. Modelo fora
- * da lista cai no padrao do provedor em vez de quebrar.
- */
-const MODELOS_PERMITIDOS: Record<AIProvider, Set<string>> = {
-  anthropic: new Set([
-    'claude-opus-5',
-    'claude-sonnet-5',
-    'claude-haiku-4-5-20251001',
-  ]),
-  google: new Set([
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
-    'gemini-1.5-pro',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-  ]),
-};
 
 /**
  * Descobre qual provedor e qual chave usar, a partir de uma linha de
@@ -87,9 +66,7 @@ export const getModel = (provider: AIProvider, apiKey: string, modelId: string) 
         throw new Error('API Key is missing');
     }
 
-    const escolhido = modelId && MODELOS_PERMITIDOS[provider]?.has(modelId)
-        ? modelId
-        : AI_DEFAULT_MODELS[provider];
+    const escolhido = normalizarModelo(provider, modelId);
 
     if (provider === 'anthropic') {
         const anthropic = createAnthropic({ apiKey });
