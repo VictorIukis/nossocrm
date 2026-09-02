@@ -15,6 +15,16 @@ const TROCA_DE_TOKEN = 'https://oauth2.googleapis.com/token';
 const API = 'https://www.googleapis.com/calendar/v3';
 
 /**
+ * Tempo máximo de uma chamada ao Google.
+ *
+ * Sem limite, uma chamada que pendura trava a funcao inteira ate a plataforma
+ * mata-la por tempo. O sintoma e um 504 seco, sem erro registrado em lugar
+ * nenhum e sem saber qual item travou -- aconteceu de verdade aqui.
+ */
+const TEMPO_LIMITE_MS = 10_000;
+
+
+/**
  * Permissões pedidas.
  *
  * `calendar.events` da acesso aos eventos, e nao a agenda inteira: nao podemos
@@ -116,6 +126,7 @@ export async function trocarCodigoPorToken(
 ): Promise<RespostaToken> {
   const r = await fetch(TROCA_DE_TOKEN, {
     method: 'POST',
+    signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       code: codigo,
@@ -159,6 +170,7 @@ export async function tokenValido(conexao: Conexao): Promise<string | null> {
 
   const r = await fetch(TROCA_DE_TOKEN, {
     method: 'POST',
+    signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: cred.clientId,
@@ -209,6 +221,7 @@ export async function chamarGoogle(
 
   return fetch(`${API}${caminho}`, {
     ...init,
+    signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
     headers: {
       ...(init.headers || {}),
       Authorization: `Bearer ${token}`,

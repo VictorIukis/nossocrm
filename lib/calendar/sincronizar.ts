@@ -485,9 +485,11 @@ export async function renovarCanaisQueVencem(): Promise<{ renovados: number; fal
  */
 export async function drenarFila(
   conexao: Conexao,
-  limite = 50
-): Promise<{ enviados: number; falhas: number }> {
+  limite = 25,
+  orcamentoMs = 20_000
+): Promise<{ enviados: number; falhas: number; sobrou: boolean }> {
   const sb = createStaticAdminClient();
+  const comecou = Date.now();
 
   const { data } = await sb
     .from('calendar_sync_queue')
@@ -501,8 +503,19 @@ export async function drenarFila(
 
   let enviados = 0;
   let falhas = 0;
+  let sobrou = false;
 
   for (const item of (data ?? []) as Array<{ id: number; activity_id: string; tentativas: number }>) {
+    // Para antes de a plataforma matar a funcao por tempo.
+    //
+    // Estourar o limite devolve um 504 seco: o que ja foi enviado nao e
+    // relatado, o que faltou nao fica registrado, e quem chamou nao sabe se
+    // deve tentar de novo. Melhor parar por conta propria e dizer que sobrou.
+    if (Date.now() - comecou > orcamentoMs) {
+      sobrou = true;
+      break;
+    }
+
     const r = await enviarAtividade(item.activity_id, conexao);
 
     if (r.ok) {
@@ -517,10 +530,12 @@ export async function drenarFila(
     }
   }
 
-  const remocoes = await drenarRemocoes(conexao);
-  falhas += remocoes.falhas;
+  if (!sobrou && Date.now() - comecou < orcamentoMs) {
+    const remocoes = await drenarRemocoes(conexao);
+    falhas += remocoes.falhas;
+  }
 
-  return { enviados, falhas };
+  return { enviados, falhas, sobrou };
 }
 
 /** Drena a fila de todo mundo. Usado pela rotina diária, como rede de segurança. */
@@ -549,7 +564,9 @@ export async function drenarFilaDeTodos(): Promise<{ enviados: number; falhas: n
       const r = await drenarFila(data as Conexao);
       enviados += r.enviados;
       falhas += r.falhas;
-    } catch {
+    } catch (e) {
+      // Uma pessoa com problema nao pode impedir o envio das outras.
+      console.error('[calendario] falha ao drenar de', userId, e instanceof Error ? e.message : e);
       falhas++;
     }
   }

@@ -14,7 +14,7 @@ import { buscarConexao } from '@/lib/calendar/google';
 import { drenarFila } from '@/lib/calendar/sincronizar';
 
 export const runtime = 'nodejs';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 function json<T>(body: T, status = 200) {
   return new Response(JSON.stringify(body), {
