@@ -82,7 +82,15 @@ export function TarefasClient() {
                 app.asana.com/0/my-apps
               </a>
             </li>
-            <li>Cole o token em Configurações, na seção Integrações</li>
+            <li>
+              Cole o token em{' '}
+              <a
+                href="/settings/integracoes#asana"
+                className="text-primary-600 dark:text-primary-400 hover:underline"
+              >
+                Configurações → Integrações → Asana
+              </a>
+            </li>
             <li>Recarregue esta página</li>
           </ol>
 
