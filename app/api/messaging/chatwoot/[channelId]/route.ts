@@ -60,6 +60,26 @@ interface RemetenteChatwoot {
   thumbnail?: string | null;
 }
 
+/**
+ * Descreve um erro de forma util.
+ *
+ * O erro do Supabase nao e um Error do JavaScript: e um objeto com message,
+ * code, details e hint. Com `e instanceof Error` ele caia em "desconhecido",
+ * ou seja, justamente a falha mais provavel nesta rota era a que nao dizia
+ * nada. Custou uma investigacao inteira para descobrir que o problema era um
+ * indice incompativel com o ON CONFLICT.
+ */
+function descreverErro(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === 'object') {
+    const o = e as { message?: string; code?: string; details?: string; hint?: string };
+    const partes = [o.message, o.code && `(${o.code})`, o.details, o.hint].filter(Boolean);
+    if (partes.length) return partes.join(' ');
+    return JSON.stringify(e).slice(0, 300);
+  }
+  return String(e);
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ channelId: string }> }
@@ -187,7 +207,9 @@ export async function POST(
       .upsert(
         {
           conversation_id: conversaId,
-          external_id: String(evento.id ?? ''),
+          // NULL, nunca string vazia: '' colidiria com a proxima mensagem
+          // sem id externo no indice de deduplicacao.
+          external_id: evento.id != null ? String(evento.id) : null,
           direction: entrada ? 'inbound' : 'outbound',
           content_type: 'text',
           content: { type: 'text', text: evento.content || '' },
@@ -196,7 +218,7 @@ export async function POST(
           sender_name: remetente?.name || null,
           metadata: { chatwoot_message_id: evento.id, chatwoot_conversation_id: conversaChatwoot },
         },
-        { onConflict: 'external_id' }
+        { onConflict: 'conversation_id,external_id' }
       );
 
     if (erroMsg) throw erroMsg;
@@ -227,6 +249,6 @@ export async function POST(
     // reenvia em erro e uma falha persistente viraria tempestade de retentativa.
     // O erro fica no log, que e onde se investiga.
     console.error('[chatwoot] falha ao processar evento:', e);
-    return json(200, { ok: false, erro: e instanceof Error ? e.message : 'desconhecido' });
+    return json(200, { ok: false, erro: descreverErro(e) });
   }
 }
