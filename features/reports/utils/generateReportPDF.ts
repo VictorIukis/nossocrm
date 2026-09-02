@@ -1,6 +1,7 @@
 import { PeriodFilter, PERIOD_LABELS } from '@/features/dashboard/hooks/useDashboardMetrics';
 import { Deal } from '@/types';
 import { MARCA } from '@/lib/marca';
+import { LOGO_PDF, LOGO_PDF_PROPORCAO } from './logoPdf';
 
 interface ReportData {
     pipelineValue: number;
@@ -19,15 +20,19 @@ interface ReportData {
 
 // Color Palette
 const COLORS = {
-    primary: [15, 23, 42] as [number, number, number],
-    secondary: [100, 116, 139] as [number, number, number],
-    blue: [59, 130, 246] as [number, number, number],
+    // Tinta e cinza da Glow. As cores de serie dos graficos (emerald, purple,
+    // orange, red) ficam como estao de proposito: elas existem para separar
+    // series visualmente, e trocar tudo por tons da marca tornaria o grafico
+    // ilegivel.
+    primary: [14, 16, 19] as [number, number, number],      // #0e1013
+    secondary: [111, 115, 110] as [number, number, number], // #6f736e
+    blue: [174, 234, 0] as [number, number, number],        // acento #aeea00
     emerald: [16, 185, 129] as [number, number, number],
     purple: [139, 92, 246] as [number, number, number],
     orange: [249, 115, 22] as [number, number, number],
     red: [239, 68, 68] as [number, number, number],
-    bgLight: [248, 250, 252] as [number, number, number],
-    border: [226, 232, 240] as [number, number, number],
+    bgLight: [242, 241, 237] as [number, number, number],   // off-white #f2f1ed
+    border: [201, 202, 199] as [number, number, number],    // #c9cac7
     white: [255, 255, 255] as [number, number, number],
 };
 
@@ -74,19 +79,21 @@ export const generateReportPDF = async (data: ReportData, period: PeriodFilter, 
     // HEADER
     // ============================================
 
-    // Marca d'agua: usa a inicial configurada em lib/marca
-    doc.setFillColor(...COLORS.blue);
-    doc.roundedRect(margin, 12, 12, 12, 2, 2, 'F');
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
-    doc.text(MARCA.inicial, margin + 4.5, 20);
+    // Logo da marca. Altura fixa e largura derivada da proporcao real, para a
+    // arte nunca sair esticada se o lockup for trocado por um de outro formato.
+    const logoAltura = 9;
+    const logoLargura = logoAltura * LOGO_PDF_PROPORCAO;
+    doc.addImage(LOGO_PDF, 'PNG', margin, 12, logoLargura, logoAltura);
+
+    // O titulo comeca depois da logo, com folga, em vez de numa posicao fixa
+    // que quebraria com um lockup mais largo.
+    const tituloX = margin + logoLargura + 6;
 
     // Title
     doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...COLORS.primary);
-    doc.text('Relatório de Performance', margin + 18, 21);
+    doc.text('Relatório de Performance', tituloX, 21);
 
     // Pipeline name
     doc.setFontSize(10);
@@ -222,11 +229,13 @@ export const generateReportPDF = async (data: ReportData, period: PeriodFilter, 
         const y = funnelY + 8 + i * (barHeight + barGap);
         const barWidth = Math.max((stage.count / maxCount) * barMaxWidth, 15);
 
-        // Gradient: blue to purple
+        // Gradiente do acento ate a tinta: o funil escurece conforme afunila.
+        // Antes ia de azul a roxo; com o acento virando limao, esse par passou a
+        // brigar. Limao para grafite e a propria linguagem da marca.
         const ratio = i / Math.max(data.funnelData.length - 1, 1);
-        const r = Math.round(COLORS.blue[0] + (COLORS.purple[0] - COLORS.blue[0]) * ratio);
-        const g = Math.round(COLORS.blue[1] + (COLORS.purple[1] - COLORS.blue[1]) * ratio);
-        const b = Math.round(COLORS.blue[2] + (COLORS.purple[2] - COLORS.blue[2]) * ratio);
+        const r = Math.round(COLORS.blue[0] + (COLORS.primary[0] - COLORS.blue[0]) * ratio);
+        const g = Math.round(COLORS.blue[1] + (COLORS.primary[1] - COLORS.blue[1]) * ratio);
+        const b = Math.round(COLORS.blue[2] + (COLORS.primary[2] - COLORS.blue[2]) * ratio);
 
         // Stage name (left aligned)
         doc.setFontSize(8);
