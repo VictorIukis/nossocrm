@@ -299,6 +299,21 @@ export async function POST(
         .eq('id', contatoId);
     }
 
+    // Evento processado: o canal está funcionando. Sem isto, um único evento
+    // recusado deixava o canal vermelho para sempre -- foi o que aconteceu
+    // depois de um segredo colado errado: o espelhamento voltou a funcionar no
+    // mesmo dia, e a tela continuou dizendo "erro" no dia seguinte.
+    if (canal.status !== 'connected') {
+      await supabase
+        .from('messaging_channels')
+        .update({
+          status: 'connected',
+          status_message: null,
+          last_connected_at: new Date().toISOString(),
+        })
+        .eq('id', canal.id);
+    }
+
     return json(200, { ok: true, conversa: conversaId });
   } catch (e) {
     // Devolve 200 mesmo em falha de processamento, de proposito: o Chatwoot
