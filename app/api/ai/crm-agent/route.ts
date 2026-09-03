@@ -103,14 +103,24 @@ export async function POST(req: Request) {
             execute: async ({ query, status, minValue, maxValue, limit }) => {
                 let dbQuery = supabase
                     .from('deals')
-                    .select('id, title, value, stage_id, probability, is_won, is_lost, contacts(name), companies(name)')
+                    .select('id, title, value, stage_id, probability, is_won, is_lost, contacts(name), crm_companies(name)')
                     .eq('organization_id', organizationId)
                     .limit(limit);
 
                 if (minValue !== undefined) dbQuery = dbQuery.gte('value', minValue);
                 if (maxValue !== undefined) dbQuery = dbQuery.lte('value', maxValue);
 
-                const { data: deals } = await dbQuery;
+                const { data: deals, error: erroBusca } = await dbQuery;
+
+                // Sem isto, uma consulta recusada pelo banco virava "nenhum
+                // negócio encontrado" -- e o agente respondia com convicção que o
+                // funil está vazio. Era o caso: o embed apontava para uma tabela
+                // que não existe (`companies`, sendo `crm_companies`), e TODA
+                // busca de negócios voltava zero.
+                if (erroBusca) {
+                    console.error('[crm-agent] searchDeals:', erroBusca);
+                    return { error: 'Não consegui consultar os negócios agora.' };
+                }
                 if (!deals) return { count: 0, deals: [] };
 
                 let filtered = deals;
@@ -118,7 +128,7 @@ export async function POST(req: Request) {
                     const q = query.toLowerCase();
                     filtered = filtered.filter(d =>
                         (d.title || '').toLowerCase().includes(q) ||
-                        ((d as any).companies?.name || '').toLowerCase().includes(q)
+                        ((d as any).crm_companies?.name || '').toLowerCase().includes(q)
                     );
                 }
                 if (status) {
@@ -130,7 +140,7 @@ export async function POST(req: Request) {
                     title: d.title,
                     value: d.value,
                     stageId: d.stage_id,
-                    company: (d as any).companies?.name,
+                    company: (d as any).crm_companies?.name,
                     contact: (d as any).contacts?.name,
                     probability: d.probability,
                     isWon: d.is_won,
@@ -285,13 +295,17 @@ export async function POST(req: Request) {
                 dealId: z.string(),
             }),
             execute: async ({ dealId }) => {
-                const { data: deal } = await supabase
+                const { data: deal, error: erroDeal } = await supabase
                     .from('deals')
-                    .select('id, title, value, stage_id, probability, is_won, is_lost, created_at, updated_at, contacts(name), companies(name)')
+                    .select('id, title, value, stage_id, probability, is_won, is_lost, created_at, updated_at, contacts(name), crm_companies(name)')
                     .eq('id', dealId)
                     .eq('organization_id', organizationId)
                     .maybeSingle();
 
+                if (erroDeal) {
+                    console.error('[crm-agent] getDealDetails:', erroDeal);
+                    return { found: false, message: 'Não consegui consultar o negócio agora.' };
+                }
                 if (!deal) return { found: false, message: 'Deal não encontrado.' };
 
                 const { count: activitiesCount } = await supabase
@@ -308,7 +322,7 @@ export async function POST(req: Request) {
                         value: deal.value,
                         stageId: deal.stage_id,
                         probability: deal.probability,
-                        company: (deal as any).companies?.name,
+                        company: (deal as any).crm_companies?.name,
                         contact: (deal as any).contacts?.name,
                         createdAt: deal.created_at,
                         updatedAt: deal.updated_at,
