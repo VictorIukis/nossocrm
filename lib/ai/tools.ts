@@ -1631,6 +1631,132 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
                 return { success: true, message: `Reordenei ${orderedStageIds.length} estágio(s).` };
             },
         }),
+
+        // ============= MÍDIA PAGA =============
+        relatorioDeAds: tool({
+            description:
+                'Lê o painel de Ads (Meta e Google) e devolve investimento, resultados, custo por resultado e as campanhas que mais gastaram. Somente leitura. Use quando pedirem relatório/números de anúncios, mídia paga, campanha, verba, CPC ou custo por lead.',
+            inputSchema: z.object({
+                periodo: z
+                    .enum(['hoje', 'ontem', '7dias', '30dias', 'mes', 'mes_passado'])
+                    .optional()
+                    .default('hoje')
+                    .describe('Período. "hoje" para o dia corrente.'),
+                fonte: z
+                    .enum(['meta', 'google', 'ambos'])
+                    .optional()
+                    .default('ambos')
+                    .describe('Qual plataforma ler.'),
+            }),
+            execute: async ({ periodo, fonte }) => {
+                console.log('[AI] 📣 relatorioDeAds', { periodo, fonte });
+
+                const { lerAdsParaIA } = await import('@/lib/ads/paraIA');
+                return await lerAdsParaIA(organizationId, periodo, fonte);
+            },
+        }),
+
+        // ============= AGENDA =============
+        agendarCompromisso: tool({
+            description:
+                'Agenda um compromisso na agenda com hora de início e de fim (reunião, ligação, visita). Vai para a agenda do CRM e, se a pessoa tiver o Google Calendar conectado, aparece lá também. Use isto quando pedirem para agendar/marcar um horário; use createTask apenas para tarefa sem horário definido. Requer aprovação no card (Aprovar/Negar) — não peça confirmação em texto.',
+            inputSchema: z.object({
+                titulo: z.string().describe('Do que é o compromisso, como aparecerá na agenda'),
+                inicio: z
+                    .string()
+                    .describe(
+                        'Início, no formato AAAA-MM-DDTHH:MM. Escreva a hora local de quem pediu, sem fuso: "amanhã 15h" vira 2026-09-04T15:00.'
+                    ),
+                fim: z
+                    .string()
+                    .optional()
+                    .describe('Fim, no mesmo formato, ou apenas a hora ("16:30"). Opcional.'),
+                duracaoMinutos: z
+                    .number()
+                    .int()
+                    .positive()
+                    .optional()
+                    .describe('Duração, quando o fim não foi dito. Padrão: 60.'),
+                tipo: z.enum(['MEETING', 'CALL', 'EMAIL', 'TASK']).optional().default('MEETING'),
+                local: z.string().optional().describe('Endereço, sala ou link da chamada'),
+                descricao: z.string().optional(),
+                dealId: z.string().optional().describe('Negócio relacionado, se houver'),
+            }),
+            needsApproval: !bypassApproval,
+            execute: async ({ titulo, inicio, fim, duracaoMinutos, tipo, local, descricao, dealId }) => {
+                console.log('[AI] 📅 agendarCompromisso', { titulo, inicio, fim });
+
+                const { paraInstante, calcularFim, FUSO_PADRAO } = await import('@/lib/formato/horario');
+
+                // O fuso da organização, e não o do servidor. O servidor roda em
+                // UTC: sem isto, "15h" viraria 12h no Brasil -- um horário
+                // plausível e errado, que ninguém liga ao pedido original.
+                const { data: cfg } = await supabase
+                    .from('organization_settings')
+                    .select('timezone')
+                    .eq('organization_id', organizationId)
+                    .maybeSingle();
+
+                const fuso = (cfg as { timezone?: string } | null)?.timezone || FUSO_PADRAO;
+
+                const inicioIso = paraInstante(inicio, fuso);
+                if (!inicioIso) {
+                    return {
+                        success: false,
+                        error: `Não entendi a data "${inicio}". Informe no formato AAAA-MM-DDTHH:MM.`,
+                    };
+                }
+
+                const fimIso = calcularFim(inicioIso, fim, duracaoMinutos, fuso);
+
+                const targetDealId = dealId || context.dealId;
+
+                const { data, error } = await supabase
+                    .from('activities')
+                    .insert({
+                        organization_id: organizationId,
+                        title: titulo,
+                        description: descricao,
+                        date: inicioIso,
+                        ends_at: fimIso,
+                        location: local,
+                        all_day: false,
+                        deal_id: targetDealId,
+                        type: tipo,
+                        // Sem dono, o compromisso não entra na agenda de ninguém e
+                        // não sobe para o Google: é o gatilho que decide pelo dono.
+                        owner_id: userId,
+                        completed: false,
+                    })
+                    .select('id, title, date, ends_at')
+                    .single();
+
+                if (error) {
+                    return { success: false, error: error.message };
+                }
+
+                const quando = new Intl.DateTimeFormat('pt-BR', {
+                    timeZone: fuso,
+                    day: '2-digit',
+                    month: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                }).format(new Date(inicioIso));
+
+                const ate = new Intl.DateTimeFormat('pt-BR', {
+                    timeZone: fuso,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                }).format(new Date(fimIso));
+
+                return {
+                    success: true,
+                    compromisso: { id: data.id, titulo: data.title, inicio: data.date, fim: data.ends_at },
+                    message: `"${titulo}" agendado para ${quando} às ${ate}.`,
+                };
+            },
+        }),
+
     } as Record<string, any>;
 
     // Debug/diagnóstico (scripts): registra chamadas de tools, independentemente do formato do stream.

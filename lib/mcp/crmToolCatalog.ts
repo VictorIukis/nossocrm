@@ -353,6 +353,18 @@ export const CRM_TOOL_CATALOG = {
     description:
       'Read-only. Returns the current AI feature flag state (ai_enabled, ai_auto_respond, ai_qualification_mode) for the authenticated organization.',
   },
+  relatorioDeAds: {
+    name: 'crm.ads.report',
+    title: 'Paid media report',
+    description:
+      'Read-only. Returns spend, results, cost per result and top campaigns from Meta Ads and Google Ads for a period. When the response has "demonstracao": true the numbers are fictional (demo mode) and must be presented as such.',
+  },
+  agendarCompromisso: {
+    name: 'crm.calendar.schedule',
+    title: 'Schedule appointment',
+    description:
+      'Writes data. Creates a calendar appointment with start and end time, optionally linked to a deal. Syncs to the owner\'s Google Calendar when connected. Write the local time of the requester without a timezone (e.g. 2026-09-04T15:00); the server converts using the organization timezone.',
+  },
 } as const satisfies Record<string, CrmToolCatalogEntry>;
 
 export type CrmInternalToolKey = keyof typeof CRM_TOOL_CATALOG;
