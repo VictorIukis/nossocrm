@@ -37,14 +37,27 @@ export async function GET(req: Request) {
   tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
   tomorrowEnd.setHours(23, 59, 59, 999);
 
-  // Fetch deal activities of type 'meeting' scheduled within today–tomorrow
+  // Compromissos de hoje e amanhã.
+  //
+  // A consulta lia `deal_activities`, que é a tabela de HISTÓRICO do negócio:
+  // não tem `scheduled_at` nem `completed_at`, e o Postgres recusava a consulta
+  // inteira. Ou seja, este cron devolvia 500 todo dia útil desde que existe, e
+  // nenhum briefing foi gerado.
+  //
+  // Compromisso está em `activities`, com `date`, `completed` e `deleted_at`.
+  //
+  // `ilike` porque a base tem 'MEETING' e 'meeting' -- vieram de caminhos
+  // diferentes (tela e importação da agenda), e comparar exato perderia parte.
   const { data: activities, error: activitiesError } = await supabase
-    .from('deal_activities')
+    .from('activities')
     .select('deal_id, organization_id')
-    .eq('type', 'meeting')
-    .gte('scheduled_at', todayStart.toISOString())
-    .lte('scheduled_at', tomorrowEnd.toISOString())
-    .is('completed_at', null);
+    .ilike('type', 'meeting')
+    .gte('date', todayStart.toISOString())
+    .lte('date', tomorrowEnd.toISOString())
+    .or('completed.is.null,completed.eq.false')
+    .is('deleted_at', null)
+    // Compromisso pessoal não tem negócio, e briefing é sobre o negócio.
+    .not('deal_id', 'is', null);
 
   if (activitiesError) {
     console.error('[Cron:daily-briefing] Failed to fetch activities:', activitiesError);
