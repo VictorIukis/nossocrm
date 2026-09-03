@@ -508,6 +508,7 @@ Veja o guia completo em: [docs/webhooks.md](./docs/webhooks.md)
 - **[Guia de Webhooks](./docs/webhooks.md)**: Como configurar automações
 - **[Permissões](./docs/security/RBAC.md)**: Entenda admin vs vendedor
 - **[API Pública](./docs/public-api.md)**: Documentação para desenvolvedores
+- **[Clicksign](./docs/clicksign.md)**: O CRM sabe quando o contrato foi assinado
 
 ### Contato
 

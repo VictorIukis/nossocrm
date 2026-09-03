@@ -230,13 +230,25 @@ export async function POST(req: Request) {
 
   // Registra no histórico do negócio. É o que responde "quando ele assinou?"
   // sem ninguém abrir o Clicksign.
+  // O texto sai do EVENTO, não só do significado: 'upload' e 'sign' são os dois
+  // "aguardando", mas um é o contrato saindo e o outro é uma parte assinando. Dar
+  // o mesmo texto aos dois fazia o envio aparecer no histórico como se alguém já
+  // tivesse assinado.
+  const porEvento: Record<string, string> = {
+    upload: 'Contrato enviado para assinatura',
+    sign: emailAssinante ? `Assinatura registrada: ${emailAssinante}` : 'Uma das partes assinou',
+    add_signer: 'Signatário adicionado ao contrato',
+    remove_signer: 'Signatário removido do contrato',
+  };
+
   const texto: Record<typeof significado, string> = {
     assinado: 'Contrato assinado por todas as partes',
-    aguardando: emailAssinante
-      ? `Assinatura registrada: ${emailAssinante}`
-      : 'Contrato enviado para assinatura',
-    recusado: 'Assinatura recusada',
-    cancelado: 'Contrato cancelado ou com prazo vencido',
+    aguardando: porEvento[nomeDoEvento ?? ''] ?? 'Contrato aguardando assinatura',
+    recusado: emailAssinante ? `Assinatura recusada por ${emailAssinante}` : 'Assinatura recusada',
+    cancelado:
+      nomeDoEvento === 'deadline'
+        ? 'Prazo de assinatura do contrato venceu'
+        : 'Contrato cancelado',
   };
 
   // A tabela tem `type` (não `activity_type`) e não tem `title`: o texto todo vai
