@@ -381,19 +381,24 @@ INSTRUÇÕES FINAIS:
 
     const briefing = result.output;
 
-    // Log tokens to ai_conversation_log fire-and-forget so budget enforcement counts them
+    // Registra o consumo de tokens, que é o que o controle de orçamento soma.
+    //
+    // Isto era disparado e esquecido. Em servidor sem estado a resposta volta
+    // antes, o processo é congelado e a escrita morre no caminho -- a tabela
+    // estava vazia mesmo depois de briefings gerados, e o orçamento contava
+    // menos do que o gasto real. Esperar custa milissegundos numa chamada que
+    // já levou segundos de IA.
     const tokensUsed = result.usage?.totalTokens ?? 0;
     if (tokensUsed > 0) {
-      supabase.from('ai_conversation_log').insert({
+      const { error: erroLog } = await supabase.from('ai_conversation_log').insert({
         organization_id: context.organization.id,
         tokens_used: tokensUsed,
         model_used: aiConfig.model,
         action_taken: 'briefing',
         action_reason: `Meeting briefing for deal ${dealId}`,
         ai_response: '',
-      }).then(({ error }) => {
-        if (error) console.error('[Briefing] Failed to log tokens (non-fatal):', error.message);
       });
+      if (erroLog) console.error('[Briefing] Falha ao registrar tokens:', erroLog.message);
     }
 
     return {

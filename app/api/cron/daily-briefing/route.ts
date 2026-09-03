@@ -13,6 +13,19 @@ function json<T>(body: T, status = 200): Response {
 /**
  * GET /api/cron/daily-briefing
  *
+ * DESAGENDADA de propósito (saiu de vercel.json em 03/set/2026).
+ *
+ * A ideia era adiantar o briefing das reuniões do dia. Só que
+ * `generateMeetingBriefing` devolve o briefing e não guarda: o único cache é o
+ * do navegador, por 5 minutos, na sessão de quem abriu a gaveta. Rodando às 8h,
+ * ela gastava IA para jogar o resultado fora -- ninguém tinha como ler aquilo.
+ * Rodei em produção antes de decidir: respondeu 200 e "processed: 2", e não
+ * sobrou nada no banco.
+ *
+ * A rota continua aqui, funcionando, porque a rotina passa a valer no dia em
+ * que o briefing for guardado (tabela própria + a gaveta lendo de lá). Aí ela
+ * volta para o agendamento e a gaveta abre pronta em dia de reunião.
+ *
  * Scheduled cron job (weekdays at 08:00 UTC) that pre-generates meeting briefings
  * for all deals with a meeting scheduled today or tomorrow.
  *
