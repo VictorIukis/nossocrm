@@ -41,7 +41,9 @@ export async function GET(req: Request) {
     .from('messaging_channels')
     .select('id, organization_id, external_identifier, credentials, settings')
     .eq('provider', 'meta-cloud')
-    .eq('is_active', true)
+    // Não existe coluna `is_active` nesta tabela: o estado do canal fica em
+    // `status`. O filtro errado derrubava a rotina inteira com 500.
+    .eq('status', 'connected')
     .is('deleted_at', null);
 
   if (channelsError) {

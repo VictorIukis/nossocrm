@@ -52,17 +52,17 @@ export async function GET(req: Request) {
 
   const supabase = createStaticAdminClient();
 
-  // Claim a batch of pending evaluations atomically.
-  // We update status to 'processing' before reading to avoid double-processing
-  // across concurrent cron invocations (Vercel may overlap on long queues).
-  const { data: claimed, error: claimError } = await supabase
-    .from('ai_pending_evaluations')
-    .update({ status: 'processing' })
-    .eq('status', 'pending')
-    .lt('attempts', MAX_ATTEMPTS)
-    .order('created_at', { ascending: true })
-    .limit(BATCH_SIZE)
-    .select('id, organization_id, conversation_id, deal_id, message_id, message_text');
+  // Reserva um lote da fila.
+  //
+  // Isto era UPDATE + ORDER BY + LIMIT pela API, e falhava sempre: o Postgres
+  // não aceita ORDER BY em UPDATE. O erro que voltava dizia que
+  // `created_at` não existe -- uma coluna que existe -- então parecia problema
+  // de schema. A função no banco usa FOR UPDATE SKIP LOCKED, que é o jeito
+  // certo de reservar trabalho sem duas execuções pegarem a mesma linha.
+  const { data: claimed, error: claimError } = await supabase.rpc(
+    'reivindicar_avaliacoes_pendentes',
+    { limite: BATCH_SIZE, max_tentativas: MAX_ATTEMPTS }
+  );
 
   if (claimError) {
     console.error('[Cron:stage-evaluations] Failed to claim batch:', claimError);
@@ -183,21 +183,23 @@ export async function GET(req: Request) {
         const errorMessage = err instanceof Error ? err.message : String(err);
         console.error(`[Cron:stage-evaluations] Failed for eval ${id}:`, errorMessage);
 
-        // Increment attempts; if >= MAX_ATTEMPTS mark as failed permanently
+        // A tentativa já foi contada na reserva, e é de propósito: linha que
+        // derruba a função no meio do caminho também queima tentativa. Contar
+        // de novo aqui gastaria duas por falha, e o limite de três viraria uma
+        // e meia.
         const { data: current } = await supabase
           .from('ai_pending_evaluations')
           .select('attempts')
           .eq('id', id)
           .maybeSingle();
 
-        const nextAttempts = (current?.attempts ?? 0) + 1;
-        const nextStatus = nextAttempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
+        const tentativas = current?.attempts ?? MAX_ATTEMPTS;
+        const nextStatus = tentativas >= MAX_ATTEMPTS ? 'failed' : 'pending';
 
         await supabase
           .from('ai_pending_evaluations')
           .update({
             status: nextStatus,
-            attempts: nextAttempts,
             last_error: errorMessage,
             processed_at: nextStatus === 'failed' ? new Date().toISOString() : null,
           })
