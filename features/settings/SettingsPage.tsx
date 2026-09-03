@@ -10,6 +10,7 @@ import { WebhooksSection } from './components/WebhooksSection';
 import { McpSection } from './components/McpSection';
 import { AsanaSection } from './components/AsanaSection';
 import { MetaAdsSection } from './components/MetaAdsSection';
+import { GoogleAdsSection } from './components/GoogleAdsSection';
 import { ChannelsSection } from './components/ChannelsSection';
 import { BusinessUnitsSection } from './components/BusinessUnitsSection';
 import { DataStorageSettings } from './components/DataStorageSettings';
@@ -114,13 +115,13 @@ const ProductsSettings: React.FC = () => {
 };
 
 const IntegrationsSettings: React.FC = () => {
-  type IntegrationsSubTab = 'channels' | 'webhooks' | 'api' | 'mcp' | 'asana' | 'meta-ads';
+  type IntegrationsSubTab = 'channels' | 'webhooks' | 'api' | 'mcp' | 'asana' | 'meta-ads' | 'google-ads';
   const [subTab, setSubTab] = useState<IntegrationsSubTab>('channels');
 
   useEffect(() => {
     const syncFromHash = () => {
     const h = typeof window !== 'undefined' ? (window.location.hash || '').replace('#', '') : '';
-    if (h === 'channels' || h === 'webhooks' || h === 'api' || h === 'mcp' || h === 'asana' || h === 'meta-ads') setSubTab(h as IntegrationsSubTab);
+    if (h === 'channels' || h === 'webhooks' || h === 'api' || h === 'mcp' || h === 'asana' || h === 'meta-ads' || h === 'google-ads') setSubTab(h as IntegrationsSubTab);
     };
 
     syncFromHash();
@@ -150,6 +151,7 @@ const IntegrationsSettings: React.FC = () => {
           { id: 'mcp' as const, label: 'MCP' },
           { id: 'asana' as const, label: 'Asana' },
           { id: 'meta-ads' as const, label: 'Meta Ads' },
+          { id: 'google-ads' as const, label: 'Google Ads' },
         ] as const).map((t) => {
           const active = subTab === t.id;
           return (
@@ -172,6 +174,7 @@ const IntegrationsSettings: React.FC = () => {
       {subTab === 'mcp' && <McpSection />}
       {subTab === 'asana' && <AsanaSection />}
       {subTab === 'meta-ads' && <MetaAdsSection />}
+      {subTab === 'google-ads' && <GoogleAdsSection />}
     </div>
   );
 };
