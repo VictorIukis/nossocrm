@@ -45,6 +45,7 @@ import {
   Bug,
   CheckSquare,
   CalendarDays,
+  Megaphone,
   PanelLeftClose,
   PanelLeftOpen, ListTodo } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -78,6 +79,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/contacts': 'Contatos',
   '/activities': 'Atividades',
   '/agenda': 'Agenda',
+  '/ads': 'Ads',
   '/decisions': 'Decisões',
   '/reports': 'Relatórios',
   '/tarefas': 'Tarefas',
@@ -323,6 +325,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             { to: '/contacts', icon: Users, label: 'Contatos', prefetch: 'contacts' as const, badge: undefined },
             { to: '/activities', icon: CheckSquare, label: 'Atividades', prefetch: 'activities' as const, badge: undefined },
             { to: '/agenda', icon: CalendarDays, label: 'Agenda', prefetch: undefined, badge: undefined },
+            { to: '/ads', icon: Megaphone, label: 'Ads', prefetch: undefined, badge: undefined },
             { to: '/reports', icon: BarChart3, label: 'Relatórios', prefetch: 'reports' as const, badge: undefined },
             { to: '/tarefas', icon: ListTodo, label: 'Tarefas', prefetch: undefined, badge: undefined },
             { to: '/settings', icon: Settings, label: 'Configurações', prefetch: 'settings' as const, badge: undefined },
