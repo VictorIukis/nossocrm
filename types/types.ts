@@ -242,6 +242,10 @@ export interface Deal {
   lastStageChangeDate?: string; // For stagnation tracking
   lossReason?: string; // For win/loss analysis
   aiExtracted?: Record<string, any>; // AI-extracted BANT fields (zero config)
+  /** Situação da assinatura no Clicksign. Escrito só pelo webhook. */
+  clicksignStatus?: 'aguardando' | 'assinado' | 'recusado' | 'cancelado';
+  /** Quando todas as partes assinaram. */
+  clicksignSignedAt?: string;
 
   // @deprecated - Use clientCompanyId instead
   companyId?: string;

@@ -9,6 +9,7 @@ import { ApiKeysSection } from './components/ApiKeysSection';
 import { WebhooksSection } from './components/WebhooksSection';
 import { McpSection } from './components/McpSection';
 import { AsanaSection } from './components/AsanaSection';
+import { ClicksignSection } from './components/ClicksignSection';
 import { MetaAdsSection } from './components/MetaAdsSection';
 import { GoogleAdsSection } from './components/GoogleAdsSection';
 import { ChannelsSection } from './components/ChannelsSection';
@@ -114,14 +115,30 @@ const ProductsSettings: React.FC = () => {
   );
 };
 
+// Uma fonte só para as abas: o rótulo, a ordem e os nomes aceitos no #hash saem
+// daqui. Antes eram três listas para manter em sincronia, e a do hash já tinha
+// ficado atrás quando o Meta Ads entrou.
+const ABAS_DE_INTEGRACAO = [
+  { id: 'channels', label: 'Canais (Messaging)' },
+  { id: 'webhooks', label: 'Webhooks' },
+  { id: 'api', label: 'API' },
+  { id: 'mcp', label: 'MCP' },
+  { id: 'asana', label: 'Asana' },
+  { id: 'clicksign', label: 'Clicksign' },
+  { id: 'meta-ads', label: 'Meta Ads' },
+  { id: 'google-ads', label: 'Google Ads' },
+] as const;
+
+const SUB_ABAS = ABAS_DE_INTEGRACAO.map((a) => a.id);
+
 const IntegrationsSettings: React.FC = () => {
-  type IntegrationsSubTab = 'channels' | 'webhooks' | 'api' | 'mcp' | 'asana' | 'meta-ads' | 'google-ads';
+  type IntegrationsSubTab = (typeof ABAS_DE_INTEGRACAO)[number]['id'];
   const [subTab, setSubTab] = useState<IntegrationsSubTab>('channels');
 
   useEffect(() => {
     const syncFromHash = () => {
     const h = typeof window !== 'undefined' ? (window.location.hash || '').replace('#', '') : '';
-    if (h === 'channels' || h === 'webhooks' || h === 'api' || h === 'mcp' || h === 'asana' || h === 'meta-ads' || h === 'google-ads') setSubTab(h as IntegrationsSubTab);
+    if ((SUB_ABAS as readonly string[]).includes(h)) setSubTab(h as IntegrationsSubTab);
     };
 
     syncFromHash();
@@ -144,15 +161,7 @@ const IntegrationsSettings: React.FC = () => {
   return (
     <div className="pb-10">
       <div className="flex items-center gap-2 mb-6">
-        {([
-          { id: 'channels' as const, label: 'Canais (Messaging)' },
-          { id: 'webhooks' as const, label: 'Webhooks' },
-          { id: 'api' as const, label: 'API' },
-          { id: 'mcp' as const, label: 'MCP' },
-          { id: 'asana' as const, label: 'Asana' },
-          { id: 'meta-ads' as const, label: 'Meta Ads' },
-          { id: 'google-ads' as const, label: 'Google Ads' },
-        ] as const).map((t) => {
+        {ABAS_DE_INTEGRACAO.map((t) => {
           const active = subTab === t.id;
           return (
             <Button
@@ -173,6 +182,7 @@ const IntegrationsSettings: React.FC = () => {
       {subTab === 'webhooks' && <WebhooksSection />}
       {subTab === 'mcp' && <McpSection />}
       {subTab === 'asana' && <AsanaSection />}
+      {subTab === 'clicksign' && <ClicksignSection />}
       {subTab === 'meta-ads' && <MetaAdsSection />}
       {subTab === 'google-ads' && <GoogleAdsSection />}
     </div>

@@ -22,7 +22,7 @@ import { LossReasonModal } from '@/components/ui/LossReasonModal';
 import { useMoveDealSimple } from '@/lib/query/hooks';
 import { DEALS_VIEW_KEY } from '@/lib/query';
 import { FocusTrap, useFocusReturn } from '@/lib/a11y';
-import { Activity, DealView } from '@/types';
+import { Activity, Deal, DealView } from '@/types';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { useResponsiveMode } from '@/hooks/useResponsiveMode';
 import { DealSheet } from '../DealSheet';
@@ -69,6 +69,51 @@ interface DealDetailModalProps {
 
 // Performance: reuse date formatter instance.
 const PT_BR_DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR');
+
+/**
+ * Selo da assinatura do contrato.
+ *
+ * Só aparece quando o Clicksign já mandou algum aviso sobre este negócio --
+ * negócio sem contrato não ganha selo nenhum.
+ */
+const SeloDeAssinatura: React.FC<{ deal: Deal }> = ({ deal }) => {
+  if (!deal.clicksignStatus) return null;
+
+  const aparencia: Record<string, { texto: string; classe: string }> = {
+    assinado: {
+      texto: '✓ CONTRATO ASSINADO',
+      classe: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    },
+    aguardando: {
+      texto: '⏳ AGUARDANDO ASSINATURA',
+      classe: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    },
+    recusado: {
+      texto: '✗ ASSINATURA RECUSADA',
+      classe: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    },
+    cancelado: {
+      texto: 'CONTRATO CANCELADO',
+      classe: 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300',
+    },
+  };
+
+  const a = aparencia[deal.clicksignStatus];
+  if (!a) return null;
+
+  return (
+    <span
+      className={`text-xs font-bold px-3 py-1.5 rounded-lg ${a.classe}`}
+      title={
+        deal.clicksignSignedAt
+          ? `Assinado em ${new Date(deal.clicksignSignedAt).toLocaleString('pt-BR')}`
+          : 'Situação informada pelo Clicksign'
+      }
+    >
+      {a.texto}
+    </span>
+  );
+};
 
 /**
  * Componente React `DealDetailModal`.
@@ -492,6 +537,10 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                 )}
               </div>
               <div className="flex gap-3 items-center">
+                {/* Assinatura do contrato, quando o Clicksign já avisou algo.
+                    É a pergunta que antes obrigava a abrir o Clicksign. */}
+                <SeloDeAssinatura deal={deal} />
+
                 {/* Se fechado: mostra badge + botão Reabrir */}
                 {(deal.isWon || deal.isLost) ? (
                   <>

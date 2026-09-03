@@ -102,6 +102,10 @@ export interface DbDeal {
   closed_at: string | null;
   /** AI-extracted BANT fields (zero config). */
   ai_extracted: Record<string, any> | null;
+  /** Situação da assinatura no Clicksign (escrita pelo webhook). */
+  clicksign_status: string | null;
+  /** Quando todas as partes assinaram. */
+  clicksign_signed_at: string | null;
 }
 
 /**
@@ -173,6 +177,8 @@ const transformDeal = (db: DbDeal | DbDealWithItems, items?: DbDealItem[]): Deal
     lossReason: db.loss_reason || undefined,
     tags: db.tags || [],
     lastStageChangeDate: db.last_stage_change_date || undefined,
+    clicksignStatus: (db.clicksign_status as Deal['clicksignStatus']) || undefined,
+    clicksignSignedAt: db.clicksign_signed_at || undefined,
     customFields: db.custom_fields || {},
     aiExtracted: db.ai_extracted || undefined,
     createdAt: db.created_at,
