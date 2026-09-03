@@ -395,10 +395,10 @@ async function logStageAdvancement(
 ): Promise<void> {
   const { dealId, organizationId, fromStageId, toStageId, evaluation, triggeredBy } = params;
 
-  await supabase.from('deal_activities').insert({
+  const { error: erroHistorico } = await supabase.from('deal_activities').insert({
     deal_id: dealId,
     organization_id: organizationId,
-    type: 'stage_change',
+    type: 'stage_changed',
     description: `Estágio avançado automaticamente pelo AI Agent`,
     metadata: {
       from_stage_id: fromStageId,
@@ -411,4 +411,8 @@ async function logStageAdvancement(
         .map((c) => c.criterion),
     },
   });
+
+      // Histórico do negócio: até aqui o erro era descartado, e foi assim que
+      // `stage_change` (sem o "d") ficou anos violando a restrição sem aparecer.
+      if (erroHistorico) console.error('[stage-evaluator] histórico:', erroHistorico);
 }

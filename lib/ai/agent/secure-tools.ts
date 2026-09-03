@@ -337,10 +337,10 @@ export function createSecureToolCollection(context: ToolContext) {
         }
 
         // Registrar atividade
-        await supabase.from('deal_activities').insert({
+        const { error: erroHistorico } = await supabase.from('deal_activities').insert({
           deal_id: params.dealId,
           organization_id: organizationId,
-          type: 'stage_change',
+          type: 'stage_changed',
           description: userEdits
             ? `Estágio avançado (aprovado por usuário): ${finalReason}`
             : `Estágio avançado automaticamente: ${finalReason}`,
@@ -354,6 +354,10 @@ export function createSecureToolCollection(context: ToolContext) {
             user_notes: userEdits?.notes,
           },
         });
+
+        // Histórico do negócio: o erro era descartado, e foi assim que
+        // `stage_change` (sem o "d") violou a restrição sem ninguém ver.
+        if (erroHistorico) console.error('[secure-tools] histórico:', erroHistorico);
 
         return {
           success: true,

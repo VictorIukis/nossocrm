@@ -302,10 +302,10 @@ export async function resolvePendingAdvance(
     .eq('id', pendingAdvanceId);
 
   // 7. Registrar atividade no deal
-  await supabase.from('deal_activities').insert({
+  const { error: erroHistorico } = await supabase.from('deal_activities').insert({
     deal_id: pending.deal_id,
     organization_id: pending.organization_id,
-    type: 'stage_change',
+    type: 'stage_changed',
     description: wasEdited
       ? `Estágio avançado (aprovado com edições): ${finalReason}`
       : `Estágio avançado (aprovado): ${finalReason}`,
@@ -323,6 +323,10 @@ export async function resolvePendingAdvance(
       pending_advance_id: pendingAdvanceId,
     },
   });
+
+      // Histórico do negócio: até aqui o erro era descartado, e foi assim que
+      // `stage_change` (sem o "d") ficou anos violando a restrição sem aparecer.
+      if (erroHistorico) console.error('[hitl-stage-advance] histórico:', erroHistorico);
 
   return { success: true, newStageId: finalStageId };
 }

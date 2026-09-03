@@ -1017,18 +1017,25 @@ async function autoCreateDeal(
     // BOOT_ERROR a qualquer chamada. Ou seja, o webhook do WhatsApp oficial
     // nunca funcionou -- so nao aparecia porque a funcao nunca tinha sido
     // publicada.
-    await supabase.from("deal_activities").insert({
+    //
+    // A tabela tem `type` (nao `activity_type`) e nao tem `title`. Com os nomes
+    // errados a insercao falhava, e o erro era descartado -- por isso a tabela
+    // de historico do negocio nunca recebeu uma linha em producao.
+    const { error: erroHistorico } = await supabase.from("deal_activities").insert({
       deal_id: newDeal.id,
       organization_id: params.organizationId,
-      activity_type: "note",
-      title: `Lead criado automaticamente via ${sourceLabel}`,
-      description: `Este negócio foi criado automaticamente quando ${params.contactName} enviou uma mensagem pelo ${sourceLabel}. Nenhuma ação manual foi necessária.`,
+      type: "note",
+      description: `Lead criado automaticamente via ${sourceLabel}: ${params.contactName} enviou uma mensagem e o negocio foi aberto sem acao manual.`,
       metadata: {
         auto_created: true,
         source: params.source || "whatsapp",
         conversation_id: params.conversationId,
       },
     });
+
+    if (erroHistorico) {
+      console.error("[meta-webhook] historico do negocio:", erroHistorico);
+    }
 
     // Update conversation with deal reference - merge with existing metadata
     const { data: conv } = await supabase
