@@ -19,7 +19,7 @@ import {
   Users,
   Link2,
 } from 'lucide-react';
-import { formatarDinheiro } from '@/lib/formato/dinheiro';
+import { formatarDinheiro, formatarDinheiroComCentavos } from '@/lib/formato/dinheiro';
 import { AvisoDemo } from './AvisoDemo';
 import {
   Cartao,
@@ -68,6 +68,16 @@ interface Resposta {
   error?: string;
 }
 
+
+/**
+ * Custo unitário mostra centavos; total mostra reais inteiros.
+ *
+ * CPC de R$ 1,45 aparecia como "R$ 1", e é sobre esse número que se decide
+ * subir ou cortar verba: entre R$ 1,10 e R$ 1,99 a diferença é de 80%, e a tela
+ * mostrava os dois iguais. No investimento total o centavo não muda decisão
+ * nenhuma e só polui.
+ */
+const unitario = formatarDinheiroComCentavos;
 
 export function PainelMeta() {
   const [periodo, setPeriodo] = useState<Periodo>('30dias');
@@ -170,7 +180,7 @@ export function PainelMeta() {
               valor={inteiro.format(painel.total.resultados)}
               rodape={
                 painel.total.custoPorResultado
-                  ? `${formatarDinheiro(painel.total.custoPorResultado)} cada`
+                  ? `${unitario(painel.total.custoPorResultado)} cada`
                   : undefined
               }
               icone={TrendingUp}
@@ -179,13 +189,13 @@ export function PainelMeta() {
             <Cartao
               titulo="Cliques"
               valor={inteiro.format(painel.total.cliques)}
-              rodape={`CPC ${formatarDinheiro(painel.total.cpc)} · CTR ${doisDecimais.format(painel.total.ctr)}%`}
+              rodape={`CPC ${unitario(painel.total.cpc)} · CTR ${doisDecimais.format(painel.total.ctr)}%`}
               icone={MousePointerClick}
             />
             <Cartao
               titulo="Alcance"
               valor={inteiro.format(painel.total.alcance)}
-              rodape={`${inteiro.format(painel.total.impressoes)} impressões · CPM ${formatarDinheiro(painel.total.cpm)}`}
+              rodape={`${inteiro.format(painel.total.impressoes)} impressões · CPM ${unitario(painel.total.cpm)}`}
               icone={Users}
             />
           </div>
@@ -236,13 +246,13 @@ export function PainelMeta() {
                           {inteiro.format(c.resultados)}
                         </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">
-                          {c.custoPorResultado ? formatarDinheiro(c.custoPorResultado) : '—'}
+                          {c.custoPorResultado ? unitario(c.custoPorResultado) : '—'}
                         </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">
                           {doisDecimais.format(c.ctr)}%
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">
-                          {formatarDinheiro(c.cpc)}
+                          {unitario(c.cpc)}
                         </td>
                       </tr>
                     ))}

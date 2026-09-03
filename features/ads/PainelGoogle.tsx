@@ -20,7 +20,7 @@ import {
   Eye,
   Link2,
 } from 'lucide-react';
-import { formatarDinheiro } from '@/lib/formato/dinheiro';
+import { formatarDinheiro, formatarDinheiroComCentavos } from '@/lib/formato/dinheiro';
 import { AvisoDemo } from './AvisoDemo';
 import {
   Cartao,
@@ -70,6 +70,16 @@ const ROTULO_STATUS: Record<string, string> = {
   PAUSED: 'pausada',
   REMOVED: 'removida',
 };
+
+/**
+ * Custo unitário mostra centavos; total mostra reais inteiros.
+ *
+ * CPC de R$ 1,45 aparecia como "R$ 1", e é sobre esse número que se decide
+ * subir ou cortar verba: entre R$ 1,10 e R$ 1,99 a diferença é de 80%, e a tela
+ * mostrava os dois iguais. No investimento total o centavo não muda decisão
+ * nenhuma e só polui.
+ */
+const unitario = formatarDinheiroComCentavos;
 
 export function PainelGoogle() {
   const [periodo, setPeriodo] = useState<Periodo>('30dias');
@@ -174,7 +184,7 @@ export function PainelGoogle() {
               }
               rodape={
                 painel.total.custoPorConversao
-                  ? `${formatarDinheiro(painel.total.custoPorConversao)} cada`
+                  ? `${unitario(painel.total.custoPorConversao)} cada`
                   : 'sem conversão no período'
               }
               icone={Target}
@@ -183,7 +193,7 @@ export function PainelGoogle() {
             <Cartao
               titulo="Cliques"
               valor={inteiro.format(painel.total.cliques)}
-              rodape={`CPC ${formatarDinheiro(painel.total.cpc)} · CTR ${doisDecimais.format(painel.total.ctr)}%`}
+              rodape={`CPC ${unitario(painel.total.cpc)} · CTR ${doisDecimais.format(painel.total.ctr)}%`}
               icone={MousePointerClick}
             />
             <Cartao
@@ -240,13 +250,13 @@ export function PainelGoogle() {
                             : doisDecimais.format(c.conversoes)}
                         </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">
-                          {c.custoPorConversao ? formatarDinheiro(c.custoPorConversao) : '—'}
+                          {c.custoPorConversao ? unitario(c.custoPorConversao) : '—'}
                         </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">
                           {doisDecimais.format(c.ctr)}%
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">
-                          {formatarDinheiro(c.cpc)}
+                          {unitario(c.cpc)}
                         </td>
                       </tr>
                     ))}
