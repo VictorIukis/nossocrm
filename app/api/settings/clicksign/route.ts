@@ -60,10 +60,29 @@ export async function GET() {
 
   // Etapas de todos os funis, para a pessoa escolher onde o negócio deve cair
   // quando o contrato é assinado.
-  const { data: etapas } = await ctx.supabase
+  //
+  // Pela credencial de serviço com filtro explícito de organização, como o resto
+  // desta rota: pelo cliente do usuário a lista voltava vazia, e o seletor ficava
+  // só com "não mover" -- sem erro nenhum na tela, porque o erro era descartado.
+  const { data: etapas, error: erroEtapas } = await sb
     .from('board_stages')
-    .select('id, name, board_id, boards(name)')
+    .select('id, name, board_id')
+    .eq('organization_id', ctx.organizationId)
     .order('order', { ascending: true });
+
+  if (erroEtapas) console.error('[settings/clicksign] etapas:', erroEtapas);
+
+  // Nome do funil, para agrupar o seletor. Em consulta separada: o embed
+  // `boards(name)` depende do nome da relação no PostgREST, e quando ele falha o
+  // resultado é uma lista vazia, não um erro visível.
+  const { data: funis } = await sb
+    .from('boards')
+    .select('id, name')
+    .eq('organization_id', ctx.organizationId);
+
+  const nomeDoFunil = new Map(
+    ((funis ?? []) as Array<{ id: string; name: string }>).map((b) => [b.id, b.name])
+  );
 
   // Quantos contratos estão pendurados agora: é o número que responde à dor
   // original -- "quem ainda não assinou?".
@@ -84,12 +103,9 @@ export async function GET() {
     ultimoEvento: cfg?.clicksign_last_event_at ?? null,
     ultimoErro: cfg?.clicksign_last_error ?? null,
     urlDoWebhook: `${enderecoPublico()}/api/clicksign/aviso`,
-    etapas: (etapas ?? []) as Array<{
-      id: string;
-      name: string;
-      board_id: string;
-      boards?: { name?: string } | null;
-    }>,
+    etapas: ((etapas ?? []) as Array<{ id: string; name: string; board_id: string }>).map(
+      (e) => ({ ...e, funil: nomeDoFunil.get(e.board_id) ?? 'Funil' })
+    ),
     aguardandoAssinatura: (pendentes ?? []) as Array<{
       id: string;
       title: string;

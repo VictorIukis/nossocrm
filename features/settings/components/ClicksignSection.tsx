@@ -27,7 +27,7 @@ interface Etapa {
   id: string;
   name: string;
   board_id: string;
-  boards?: { name?: string } | null;
+  funil: string;
 }
 
 interface Pendente {
@@ -150,7 +150,7 @@ export function ClicksignSection() {
 
   const etapasPorFunil = new Map<string, Etapa[]>();
   for (const e of dados?.etapas ?? []) {
-    const funil = e.boards?.name || 'Funil';
+    const funil = e.funil || 'Funil';
     const lista = etapasPorFunil.get(funil) ?? [];
     lista.push(e);
     etapasPorFunil.set(funil, lista);
@@ -334,7 +334,7 @@ export function ClicksignSection() {
 
       <p className="text-xs text-slate-400 dark:text-slate-500">
         O CRM liga o contrato ao negócio pelo e-mail de quem assina: acha o contato e, dele, o
-        negócio aberto mais recente. Quando não encontra ninguém, o aviso é ignorado em vez de
+        negócio mais recente que não está perdido. Quando não encontra ninguém, o aviso é ignorado em vez de
         adivinhado, porque mover o negócio errado faria alguém começar um projeto que não foi
         vendido.
       </p>
