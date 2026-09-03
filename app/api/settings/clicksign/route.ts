@@ -39,6 +39,10 @@ export async function GET() {
   const ctx = await contexto();
   if ('erro' in ctx) return ctx.erro;
 
+  // A aba de Integrações já é só de admin na tela. Repetir aqui porque a rota
+  // devolve a lista de contratos pendentes, que é informação comercial.
+  if (!ctx.ehAdmin) return json({ error: 'Sem permissão' }, 403);
+
   const sb = createStaticAdminClient();
 
   const { data } = await sb

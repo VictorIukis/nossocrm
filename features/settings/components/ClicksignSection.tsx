@@ -314,8 +314,9 @@ export function ClicksignSection() {
           <ul className="space-y-2">
             {dados!.aguardandoAssinatura.map((n) => (
               <li key={n.id} className="flex items-center justify-between gap-3 text-sm">
+                {/* `/deals/<id>` não existe: negócio abre pelo quadro, com ?deal= */}
                 <a
-                  href={`/deals/${n.id}`}
+                  href={`/boards?deal=${n.id}`}
                   className="text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 truncate"
                 >
                   {n.title}
