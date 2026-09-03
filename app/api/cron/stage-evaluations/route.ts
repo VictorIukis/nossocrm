@@ -18,7 +18,7 @@
  * Protected by CRON_SECRET bearer token — only callable by Vercel Cron.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
 import { evaluateStageAdvancement } from '@/lib/ai/agent/stage-evaluator';
 import { buildLeadContext } from '@/lib/ai/agent/context-builder';
 import { getConversationHistory, getOrgAIConfig } from '@/lib/ai/agent/agent.service';
@@ -35,6 +35,13 @@ function json<T>(body: T, status = 200): Response {
   });
 }
 
+// Rotina agendada não tem usuário logado: o cliente com sessão cai no RLS e não
+// vê linha nenhuma. Duas rotinas devolviam 500 por isso, e uma devolvia 200 com
+// zero -- que é pior, porque parece que simplesmente não havia trabalho a fazer.
+//
+// Aqui a credencial de serviço é a certa, e não um atalho: a rotina varre TODAS
+// as organizações de propósito. Por isso cada consulta continua carregando o
+// organization_id da linha para frente, em vez de confiar no filtro do banco.
 export async function GET(req: Request) {
   const authHeader = req.headers.get('Authorization');
   const cronSecret = process.env.CRON_SECRET;
@@ -43,7 +50,7 @@ export async function GET(req: Request) {
     return json({ error: 'Unauthorized' }, 401);
   }
 
-  const supabase = await createClient();
+  const supabase = createStaticAdminClient();
 
   // Claim a batch of pending evaluations atomically.
   // We update status to 'processing' before reading to avoid double-processing
