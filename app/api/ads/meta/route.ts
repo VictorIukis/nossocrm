@@ -17,6 +17,8 @@ import {
   periodoValido,
   type ConexaoMeta,
 } from '@/lib/ads/meta';
+import { painelDemoMeta } from '@/lib/ads/demo';
+import { modoDemoLigado } from '@/lib/ads/modoDemo';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -74,6 +76,17 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const periodo = periodoValido(url.searchParams.get('periodo'));
   const atualizar = url.searchParams.get('atualizar') === '1';
+
+  // Antes de qualquer coisa: em demonstração o CRM não fala com a Meta. A
+  // conta de anúncio dos clientes fica intocada mesmo que exista token salvo.
+  if (await modoDemoLigado(ctx.organizationId)) {
+    return json({
+      conectado: true,
+      demo: true,
+      ehAdmin: ctx.ehAdmin,
+      painel: painelDemoMeta(periodo),
+    });
+  }
 
   const conexao = await lerConexao(ctx.organizationId);
   if (!conexao) {

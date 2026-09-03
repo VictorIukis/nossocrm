@@ -17,6 +17,8 @@ import {
   soDigitos,
   type ConexaoGoogleAds,
 } from '@/lib/ads/google';
+import { painelDemoGoogle } from '@/lib/ads/demo';
+import { modoDemoLigado } from '@/lib/ads/modoDemo';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -72,6 +74,21 @@ async function lerConfig(organizationId: string): Promise<LinhaConfig | null> {
 export async function GET(req: Request) {
   const ctx = await contexto();
   if ('erro' in ctx) return ctx.erro;
+
+  // Antes de qualquer coisa: em demonstração o CRM não fala com o Google. Vale
+  // mesmo sem token de aplicativo configurado -- é justamente o caso de quem só
+  // quer mostrar a tela.
+  if (await modoDemoLigado(ctx.organizationId)) {
+    const url = new URL(req.url);
+    return json({
+      disponivel: true,
+      autorizado: true,
+      contaEscolhida: true,
+      demo: true,
+      ehAdmin: ctx.ehAdmin,
+      painel: painelDemoGoogle(periodoValido(url.searchParams.get('periodo'))),
+    });
+  }
 
   const disponivel = Boolean(credenciaisApp());
   const cfg = await lerConfig(ctx.organizationId);

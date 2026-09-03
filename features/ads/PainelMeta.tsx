@@ -20,6 +20,7 @@ import {
   Link2,
 } from 'lucide-react';
 import { formatarDinheiro } from '@/lib/formato/dinheiro';
+import { AvisoDemo } from './AvisoDemo';
 import {
   Cartao,
   Barras,
@@ -61,6 +62,8 @@ interface Painel {
 interface Resposta {
   conectado: boolean;
   ehAdmin: boolean;
+  /** Números fictícios. A tela precisa dizer isso em voz alta. */
+  demo?: boolean;
   painel?: Painel;
   error?: string;
 }
@@ -108,6 +111,8 @@ export function PainelMeta() {
 
   return (
     <div className="pb-10">
+      {dados?.demo && <AvisoDemo />}
+
       {/* ── controles ── */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
         <SeletorDePeriodo valor={periodo} aoTrocar={setPeriodo} />

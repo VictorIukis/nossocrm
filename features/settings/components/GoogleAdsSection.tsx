@@ -19,6 +19,7 @@ import {
   BarChart3,
   Save,
 } from 'lucide-react';
+import { ModoDemoAds } from './ModoDemoAds';
 
 interface Estado {
   disponivel: boolean;
@@ -127,6 +128,8 @@ export function GoogleAdsSection() {
           Traz investimento, conversões e desempenho por campanha para a aba Ads.
         </p>
       </div>
+
+      <ModoDemoAds aoMudar={carregar} />
 
       {aviso && (
         <p

@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Megaphone,
 } from 'lucide-react';
+import { ModoDemoAds } from './ModoDemoAds';
 
 interface Estado {
   conectado: boolean;
@@ -125,6 +126,8 @@ export function MetaAdsSection() {
           Traz investimento, custo por resultado e desempenho por campanha para a aba Ads.
         </p>
       </div>
+
+      <ModoDemoAds aoMudar={carregar} />
 
       {estado?.conectado && !estado.error && (
         <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
