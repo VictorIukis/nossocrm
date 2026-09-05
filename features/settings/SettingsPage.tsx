@@ -10,6 +10,7 @@ import { WebhooksSection } from './components/WebhooksSection';
 import { McpSection } from './components/McpSection';
 import { AsanaSection } from './components/AsanaSection';
 import { ClicksignSection } from './components/ClicksignSection';
+import { RdSection } from './components/RdSection';
 import { MetaAdsSection } from './components/MetaAdsSection';
 import { GoogleAdsSection } from './components/GoogleAdsSection';
 import { ChannelsSection } from './components/ChannelsSection';
@@ -125,6 +126,7 @@ const ABAS_DE_INTEGRACAO = [
   { id: 'mcp', label: 'MCP' },
   { id: 'asana', label: 'Asana' },
   { id: 'clicksign', label: 'Clicksign' },
+  { id: 'rd', label: 'RD Station' },
   { id: 'meta-ads', label: 'Meta Ads' },
   { id: 'google-ads', label: 'Google Ads' },
 ] as const;
@@ -183,6 +185,7 @@ const IntegrationsSettings: React.FC = () => {
       {subTab === 'mcp' && <McpSection />}
       {subTab === 'asana' && <AsanaSection />}
       {subTab === 'clicksign' && <ClicksignSection />}
+      {subTab === 'rd' && <RdSection />}
       {subTab === 'meta-ads' && <MetaAdsSection />}
       {subTab === 'google-ads' && <GoogleAdsSection />}
     </div>
