@@ -17,7 +17,7 @@
  */
 
 import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
-import { lerLeadDoRD, respostasEmTexto } from '@/lib/rd/payload';
+import { lerLeadDoRD, normalizarTelefone, respostasEmTexto } from '@/lib/rd/payload';
 
 export const runtime = 'nodejs';
 
@@ -174,6 +174,23 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
     contatoId = (novo as { id: string }).id;
   }
 
+  // O telefone pode já existir aqui, mesmo que o formulário não pergunte.
+  //
+  // É o caso de quem já era contato (converteu antes numa página que pedia
+  // WhatsApp, veio de importação, ou alguém cadastrou na mão). Sem isto, o lead
+  // ficava de fora do primeiro contato por falta de um número que o CRM já
+  // tinha guardado.
+  let telefoneParaFalar = lead.telefone;
+  if (!telefoneParaFalar && contatoId) {
+    const { data: doContato } = await sb
+      .from('contacts')
+      .select('phone')
+      .eq('id', contatoId)
+      .maybeSingle();
+
+    telefoneParaFalar = normalizarTelefone((doContato as { phone?: string } | null)?.phone);
+  }
+
   // ---- negócio -------------------------------------------------------------
   const contexto = respostasEmTexto(lead.respostas);
 
@@ -244,7 +261,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
   let filaId: number | null = null;
   let motivoSemFila: string | null = null;
 
-  if (!lead.telefone) {
+  if (!telefoneParaFalar) {
     motivoSemFila = 'lead sem telefone';
   } else if (!c.rd_primeiro_contato_ativo) {
     // A fila é montada mesmo desligado? Não: linha aguardando que nunca sai
@@ -259,7 +276,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
         contact_id: contatoId,
         deal_id: negocioId,
         conversao_id: conversaoLinha,
-        telefone: lead.telefone,
+        telefone: telefoneParaFalar,
         variaveis: {
           nome: lead.primeiroNome || lead.nome || '',
           empresa: lead.empresa || '',
