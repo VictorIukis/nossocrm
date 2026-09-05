@@ -10,10 +10,11 @@
  * mensagem de WhatsApp para gente de verdade, minutos depois de cada cadastro.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  Loader2, Save, CheckCircle2, AlertCircle, Copy, Check, Zap, Clock,
+  Loader2, Save, CheckCircle2, AlertCircle, Copy, Check, Zap,
 } from 'lucide-react';
+import { RdRegras, type Regra } from './RdRegras';
 
 interface Fonte {
   id: string;
@@ -29,18 +30,19 @@ interface Canal {
   status: string;
 }
 
+interface Etapa { id: string; name: string; funil: string }
+
 interface Dados {
   config: {
     rd_primeiro_contato_ativo?: boolean;
-    rd_atraso_minutos?: number;
-    rd_modelo_nome?: string;
-    rd_modelo_texto?: string;
-    rd_modelo_variaveis?: string[];
     rd_canal_id?: string;
     rd_ultimo_erro?: string;
   };
   fontes: Fonte[];
   canais: Canal[];
+  regras: Regra[];
+  etapas: Etapa[];
+  formulariosVistos: string[];
   leadsRecebidos: number;
   fila: Record<string, number>;
   ultimos: Array<{ email: string | null; telefone: string | null; identificador: string | null; criado_em: string }>;
@@ -74,10 +76,6 @@ export function RdSection() {
   const [ok, setOk] = useState<string | null>(null);
   const [copiada, setCopiada] = useState<string | null>(null);
 
-  const [atraso, setAtraso] = useState(5);
-  const [modeloNome, setModeloNome] = useState('');
-  const [modeloTexto, setModeloTexto] = useState('');
-  const [variaveis, setVariaveis] = useState<string[]>([]);
   const [canalId, setCanalId] = useState('');
 
   const carregar = useCallback(async () => {
@@ -89,10 +87,6 @@ export function RdSection() {
         return;
       }
       setD(dados);
-      setAtraso(dados.config.rd_atraso_minutos ?? 5);
-      setModeloNome(dados.config.rd_modelo_nome ?? '');
-      setModeloTexto(dados.config.rd_modelo_texto ?? '');
-      setVariaveis(dados.config.rd_modelo_variaveis ?? []);
       setCanalId(dados.config.rd_canal_id ?? '');
     } catch {
       setErro('Não consegui falar com o servidor.');
@@ -102,32 +96,6 @@ export function RdSection() {
   }, []);
 
   useEffect(() => { void carregar(); }, [carregar]);
-
-  // O número de variáveis vem do texto, não de um campo separado: assim a tela
-  // não deixa você escolher três campos para um modelo que declara um.
-  const esperadas = useMemo(() => quantasVariaveis(modeloTexto), [modeloTexto]);
-
-  useEffect(() => {
-    setVariaveis((atual) => {
-      if (atual.length === esperadas) return atual;
-      const novo = [...atual];
-      while (novo.length < esperadas) novo.push('empresa');
-      return novo.slice(0, esperadas);
-    });
-  }, [esperadas]);
-
-  const previa = useMemo(() => {
-    let t = modeloTexto;
-    const exemplo: Record<string, string> = {
-      nome: 'Fabricio',
-      empresa: 'Backbone Studio',
-      formulario: 'diagnostico-bright',
-    };
-    variaveis.forEach((campo, i) => {
-      t = t.split(`{{${i + 1}}}`).join(exemplo[campo] ?? '…');
-    });
-    return t;
-  }, [modeloTexto, variaveis]);
 
   const copiar = async (texto: string, qual: string) => {
     try {
@@ -148,10 +116,6 @@ export function RdSection() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          atrasoMinutos: atraso,
-          modeloNome,
-          modeloTexto,
-          modeloVariaveis: variaveis,
           canalId: canalId || null,
           ...(ligar === undefined ? {} : { ativo: ligar }),
         }),
@@ -235,75 +199,17 @@ export function RdSection() {
         )}
       </div>
 
-      {/* ── 2. mensagem ── */}
-      <div className="rounded-xl border border-slate-200 dark:border-white/10 p-4 space-y-4">
-        <div>
-          <span className={ROTULO}>2. A mensagem de abertura</span>
-          <p className="text-xs text-slate-500 dark:text-slate-400 -mt-1">
-            Fora da janela de 24 horas, o WhatsApp oficial só aceita modelo aprovado pela Meta.
-            O texto aqui precisa ser <strong>igual</strong> ao aprovado lá: é ele que vai para o
-            histórico do negócio.
-          </p>
-        </div>
+      {/* ── 2. regras ── */}
+      <RdRegras
+        regras={d?.regras ?? []}
+        etapas={d?.etapas ?? []}
+        formulariosVistos={d?.formulariosVistos ?? []}
+        camposDeVariavel={d?.camposDeVariavel ?? []}
+        aoMudar={() => void carregar()}
+      />
 
-        <div>
-          <label htmlFor="rd-modelo-nome" className={ROTULO}>Nome do modelo na Meta</label>
-          <input
-            id="rd-modelo-nome"
-            value={modeloNome}
-            disabled={salvando}
-            onChange={(e) => setModeloNome(e.target.value)}
-            placeholder="bright_t0_apresentacao"
-            className={CAMPO}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="rd-modelo-texto" className={ROTULO}>Texto do modelo</label>
-          <textarea
-            id="rd-modelo-texto"
-            rows={3}
-            value={modeloTexto}
-            disabled={salvando}
-            onChange={(e) => setModeloTexto(e.target.value)}
-            placeholder="Aqui é a Sofia, do time da Bright. Vi que você acabou de pedir o Diagnóstico de Receita para a {{1}}. Certo?"
-            className={CAMPO}
-          />
-        </div>
-
-        {esperadas > 0 && (
-          <div className="space-y-2">
-            <span className={ROTULO}>O que entra em cada variável</span>
-            {Array.from({ length: esperadas }, (_, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <code className="text-xs font-mono text-slate-500 dark:text-slate-400 w-12">
-                  {`{{${i + 1}}}`}
-                </code>
-                <select
-                  value={variaveis[i] ?? 'empresa'}
-                  disabled={salvando}
-                  onChange={(e) => {
-                    const novo = [...variaveis];
-                    novo[i] = e.target.value;
-                    setVariaveis(novo);
-                  }}
-                  className={CAMPO}
-                  aria-label={`Campo da variável ${i + 1}`}
-                >
-                  {(d?.camposDeVariavel ?? []).map((c) => (
-                    <option key={c} value={c}>{NOME_DO_CAMPO[c] ?? c}</option>
-                  ))}
-                </select>
-              </div>
-            ))}
-
-            <div className="rounded-lg bg-slate-50 dark:bg-black/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">O lead vai receber:</p>
-              <p className="text-sm text-slate-800 dark:text-slate-200">{previa}</p>
-            </div>
-          </div>
-        )}
-
+      {/* ── canal ── */}
+      <div className="rounded-xl border border-slate-200 dark:border-white/10 p-4 space-y-3">
         <div>
           <label htmlFor="rd-canal" className={ROTULO}>Número que envia</label>
           <select
@@ -320,23 +226,9 @@ export function RdSection() {
               </option>
             ))}
           </select>
-        </div>
-
-        <div>
-          <label htmlFor="rd-atraso" className={ROTULO}>
-            <Clock size={13} className="inline mr-1 -mt-0.5" />
-            Esperar quantos minutos depois do cadastro
-          </label>
-          <input
-            id="rd-atraso"
-            type="number"
-            min={1}
-            max={1440}
-            value={atraso}
-            disabled={salvando}
-            onChange={(e) => setAtraso(Number(e.target.value))}
-            className={`${CAMPO} max-w-[8rem]`}
-          />
+          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+            Vale para todas as regras: é o número da Sofia que abre a conversa.
+          </p>
         </div>
 
         {erro && (
@@ -357,7 +249,7 @@ export function RdSection() {
             bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60 transition-colors"
         >
           {salvando ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-          Salvar
+          Salvar canal
         </button>
       </div>
 
@@ -371,12 +263,12 @@ export function RdSection() {
           <div>
             <p className="text-sm font-medium text-slate-900 dark:text-white flex items-center gap-2">
               <Zap size={15} className={ativo ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'} />
-              3. Disparo automático
+              3. Chave geral do disparo
             </p>
             <p className="text-xs text-slate-600 dark:text-slate-300 mt-1.5 max-w-md">
               {ativo
-                ? `Ligado. Cada lead com WhatsApp recebe a mensagem ${atraso} minutos depois de se cadastrar.`
-                : 'Desligado. Os leads continuam entrando no CRM normalmente, só não sai mensagem.'}
+                ? 'Ligado. As regras com disparo ativo mandam mensagem no tempo de cada uma.'
+                : 'Desligado. Os leads continuam entrando no CRM normalmente, e nenhuma regra dispara.'}
             </p>
           </div>
 

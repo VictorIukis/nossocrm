@@ -39,6 +39,18 @@ interface LinhaDaFila {
   telefone: string;
   variaveis: Record<string, string>;
   tentativas: number;
+  regra_id: string | null;
+}
+
+interface Regra {
+  id: string;
+  apelido: string;
+  modelo_nome: string | null;
+  modelo_texto: string | null;
+  modelo_variaveis: string[] | null;
+  modelo_idioma: string;
+  modelo_categoria: string;
+  dispara: boolean;
 }
 
 export async function GET(req: Request) {
@@ -80,17 +92,30 @@ export async function GET(req: Request) {
   let enviados = 0;
   let falhas = 0;
 
-  // Configuração por organização, buscada uma vez por rodada.
+  // Configuração por organização (chave mestra e canal) e regra por formulário
+  // (o que dizer). Buscadas uma vez por rodada.
   const orgs = [...new Set(lote.map((l) => l.organization_id))];
   const config = new Map<string, Record<string, unknown>>();
 
   for (const org of orgs) {
     const { data } = await sb
       .from('organization_settings')
-      .select('rd_primeiro_contato_ativo, rd_modelo_nome, rd_modelo_idioma, rd_modelo_categoria, rd_canal_id, rd_modelo_texto, rd_modelo_variaveis')
+      .select('rd_primeiro_contato_ativo, rd_canal_id')
       .eq('organization_id', org)
       .maybeSingle();
     config.set(org, (data || {}) as Record<string, unknown>);
+  }
+
+  const idsDeRegra = [...new Set(lote.map((l) => l.regra_id).filter(Boolean))] as string[];
+  const regras = new Map<string, Regra>();
+
+  if (idsDeRegra.length > 0) {
+    const { data } = await sb
+      .from('rd_regras')
+      .select('id, apelido, modelo_nome, modelo_texto, modelo_variaveis, modelo_idioma, modelo_categoria, dispara')
+      .in('id', idsDeRegra);
+
+    for (const r of ((data ?? []) as Regra[])) regras.set(r.id, r);
   }
 
   for (const linha of lote) {
@@ -114,10 +139,23 @@ export async function GET(req: Request) {
       continue;
     }
 
-    const nomeDoModelo = (cfg.rd_modelo_nome as string) || '';
-    const textoDoModelo = (cfg.rd_modelo_texto as string) || '';
+    const regra = linha.regra_id ? regras.get(linha.regra_id) : undefined;
+    if (!regra) {
+      // A regra sumiu entre a entrada do lead e o envio (alguém apagou).
+      // Cancelar é mais honesto do que escolher outra por conta própria.
+      await encerrar('cancelado', 'a regra deste lead não existe mais');
+      continue;
+    }
+
+    if (!regra.dispara) {
+      await encerrar('cancelado', `a regra "${regra.apelido}" foi desligada`);
+      continue;
+    }
+
+    const nomeDoModelo = regra.modelo_nome || '';
+    const textoDoModelo = regra.modelo_texto || '';
     if (!nomeDoModelo || !textoDoModelo) {
-      await encerrar('falhou', 'falta configurar o modelo aprovado na Meta');
+      await encerrar('falhou', `a regra "${regra.apelido}" está sem modelo aprovado`);
       falhas++;
       continue;
     }
@@ -147,7 +185,7 @@ export async function GET(req: Request) {
     // A ordem das variáveis é configuração, não convenção: um modelo aprovado
     // pode ter só a empresa em {{1}}, e mandar o nome ali não dá erro nenhum --
     // manda "para a Fabricio" e a pessoa lê.
-    const campos = (cfg.rd_modelo_variaveis as string[] | null) ?? ['empresa'];
+    const campos = regra.modelo_variaveis ?? ['empresa'];
     const valores = campos.map((campo) => linha.variaveis?.[campo] ?? '');
     const preenchido = preencherModelo(textoDoModelo, valores);
     if (!preenchido.ok) {
@@ -163,8 +201,8 @@ export async function GET(req: Request) {
       null,
       {
         nome: nomeDoModelo,
-        idioma: (cfg.rd_modelo_idioma as string) || 'pt_BR',
-        categoria: (cfg.rd_modelo_categoria as string) || 'marketing',
+        idioma: regra.modelo_idioma || 'pt_BR',
+        categoria: regra.modelo_categoria || 'marketing',
         textoFinal: preenchido.texto,
         variaveis: valores,
       }
@@ -179,8 +217,12 @@ export async function GET(req: Request) {
           deal_id: linha.deal_id,
           organization_id: linha.organization_id,
           type: 'contacted',
-          description: `Primeiro contato enviado no WhatsApp: ${preenchido.texto}`,
-          metadata: { origem: 'primeiro_contato', conversa_chatwoot: r.conversaId },
+          description: `Primeiro contato enviado no WhatsApp (regra "${regra.apelido}"): ${preenchido.texto}`,
+          metadata: {
+            origem: 'primeiro_contato',
+            regra: regra.apelido,
+            conversa_chatwoot: r.conversaId,
+          },
         });
       }
     } else {

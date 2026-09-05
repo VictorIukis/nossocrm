@@ -159,3 +159,97 @@ ALTER TABLE public.organization_settings
 
 COMMENT ON COLUMN public.organization_settings.rd_modelo_variaveis IS
   'Campos que preenchem {{1}}, {{2}}... na ordem. Valores aceitos: nome, empresa, formulario.';
+
+-- ---------------------------------------------------------------------------
+-- Uma regra por formulário do RD
+-- ---------------------------------------------------------------------------
+--
+-- A configuração era uma só para a organização inteira: um modelo, um atraso,
+-- um funil. Isso obriga a tratar igual quem se inscreveu num evento ao vivo e
+-- quem pediu um diagnóstico -- o oposto do que a mensagem precisa fazer. Quem
+-- pediu diagnóstico quer marcar hora; quem se inscreveu no evento quer o link.
+--
+-- O identificador do formulário chega em toda conversão. Ele vira a chave.
+
+CREATE TABLE IF NOT EXISTS public.rd_regras (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id   UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  identificador     TEXT,
+  apelido           TEXT NOT NULL,
+  board_id          UUID REFERENCES public.boards(id) ON DELETE SET NULL,
+  stage_id          UUID REFERENCES public.board_stages(id) ON DELETE SET NULL,
+  modelo_nome       TEXT,
+  modelo_texto      TEXT,
+  modelo_variaveis  TEXT[] NOT NULL DEFAULT ARRAY['empresa']::TEXT[],
+  modelo_idioma     TEXT NOT NULL DEFAULT 'pt_BR',
+  modelo_categoria  TEXT NOT NULL DEFAULT 'marketing',
+  atraso_minutos    INT NOT NULL DEFAULT 5 CHECK (atraso_minutos BETWEEN 1 AND 1440),
+  dispara           BOOLEAN NOT NULL DEFAULT false,
+  criado_em         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  atualizado_em     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_regra_por_formulario
+  ON public.rd_regras (organization_id, identificador) WHERE identificador IS NOT NULL;
+
+-- Regra com identificador NULL é a reserva, e só pode haver uma.
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_regra_reserva
+  ON public.rd_regras (organization_id) WHERE identificador IS NULL;
+
+ALTER TABLE public.rd_regras ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS rd_regras_sem_acesso ON public.rd_regras;
+CREATE POLICY rd_regras_sem_acesso ON public.rd_regras
+  FOR ALL TO authenticated USING (false) WITH CHECK (false);
+
+-- A fila guarda a regra que valia quando o lead entrou. Recalcular na hora do
+-- envio faria sair uma mensagem que ninguém decidiu mandar para aquele lead,
+-- caso alguém tivesse editado o texto no meio do caminho.
+ALTER TABLE public.primeiro_contato_fila
+  ADD COLUMN IF NOT EXISTS regra_id UUID REFERENCES public.rd_regras(id) ON DELETE SET NULL;
+
+CREATE OR REPLACE FUNCTION public.regra_do_formulario(org UUID, form TEXT)
+RETURNS public.rd_regras
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT r.* FROM public.rd_regras r
+   WHERE r.organization_id = org
+     AND (r.identificador = form OR r.identificador IS NULL)
+   ORDER BY r.identificador NULLS LAST
+   LIMIT 1;
+$$;
+
+REVOKE ALL ON FUNCTION public.regra_do_formulario(UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.regra_do_formulario(UUID, TEXT) TO service_role;
+
+-- A reserva do lote passa a devolver a regra da linha.
+DROP FUNCTION IF EXISTS public.reservar_primeiro_contato(INT, INT);
+
+CREATE OR REPLACE FUNCTION public.reservar_primeiro_contato(
+  limite INT DEFAULT 10, max_tentativas INT DEFAULT 3
+)
+RETURNS TABLE (
+  id BIGINT, organization_id UUID, contact_id UUID, deal_id UUID,
+  telefone TEXT, variaveis JSONB, tentativas INT, regra_id UUID
+)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  RETURN QUERY
+  UPDATE public.primeiro_contato_fila f
+     SET status = 'enviando', tentativas = COALESCE(f.tentativas, 0) + 1
+   WHERE f.id IN (
+     SELECT p.id FROM public.primeiro_contato_fila p
+      WHERE p.status = 'aguardando'
+        AND p.enviar_em <= now()
+        AND COALESCE(p.tentativas, 0) < max_tentativas
+      ORDER BY p.enviar_em
+      FOR UPDATE SKIP LOCKED
+      LIMIT limite
+   )
+  RETURNING f.id, f.organization_id, f.contact_id, f.deal_id,
+            f.telefone, f.variaveis, f.tentativas, f.regra_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.reservar_primeiro_contato(INT, INT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reservar_primeiro_contato(INT, INT) TO service_role;

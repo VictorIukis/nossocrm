@@ -88,6 +88,26 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
     return json(200, { ok: true, ignorado: 'lead sem e-mail e sem telefone' });
   }
 
+  // A regra do formulário decide TUDO daqui para a frente: em que funil o
+  // negócio entra, o que a mensagem diz e quando sai.
+  //
+  // É o que separa quem se inscreveu num evento ao vivo de quem pediu um
+  // diagnóstico. Os dois chegam pelo mesmo webhook; o que muda é o
+  // identificador, e ele vem em toda conversão.
+  const { data: regraLinha } = await sb.rpc('regra_do_formulario', {
+    org: f.organization_id,
+    form: lead.identificador,
+  });
+
+  const regra = (Array.isArray(regraLinha) ? regraLinha[0] : regraLinha) as {
+    id: string;
+    apelido: string;
+    board_id: string | null;
+    stage_id: string | null;
+    atraso_minutos: number;
+    dispara: boolean;
+  } | null;
+
   // Duplicata: o RD reenvia em erro, e o botão "Verificar" da tela dele dispara
   // de novo. Sem isto, o mesmo lead viraria dois negócios e duas abordagens.
   if (lead.conversaoId) {
@@ -200,9 +220,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
       organization_id: f.organization_id,
       title: lead.empresa || lead.nome || 'Lead do RD Station',
       contact_id: contatoId,
-      board_id: f.entry_board_id,
-      stage_id: f.entry_stage_id,
-      status: f.entry_stage_id,
+      // Da regra quando houver; senão, o destino padrão da fonte.
+      board_id: regra?.board_id || f.entry_board_id,
+      stage_id: regra?.stage_id || f.entry_stage_id,
+      status: regra?.stage_id || f.entry_stage_id,
       value: 0,
       // As respostas ficam no negócio para quem abrir ver sem procurar.
       custom_fields: {
@@ -250,13 +271,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
   }
 
   // ---- fila do primeiro contato -------------------------------------------
+  // A chave mestra da organização continua valendo por cima de tudo: com ela
+  // desligada, nenhuma regra dispara.
   const { data: cfg } = await sb
     .from('organization_settings')
-    .select('rd_primeiro_contato_ativo, rd_atraso_minutos')
+    .select('rd_primeiro_contato_ativo')
     .eq('organization_id', f.organization_id)
     .maybeSingle();
 
-  const c = (cfg || {}) as { rd_primeiro_contato_ativo?: boolean; rd_atraso_minutos?: number };
+  const c = (cfg || {}) as { rd_primeiro_contato_ativo?: boolean };
 
   let filaId: number | null = null;
   let motivoSemFila: string | null = null;
@@ -267,8 +290,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
     // A fila é montada mesmo desligado? Não: linha aguardando que nunca sai
     // vira mensagem atrasada no dia em que alguém ligar a chave.
     motivoSemFila = 'primeiro contato desligado nas configurações';
+  } else if (!regra) {
+    motivoSemFila = `formulário "${lead.identificador ?? 'sem identificador'}" não tem regra e não há regra padrão`;
+  } else if (!regra.dispara) {
+    motivoSemFila = `a regra "${regra.apelido}" está com o disparo desligado`;
   } else {
-    const minutos = c.rd_atraso_minutos ?? 5;
+    const minutos = regra.atraso_minutos ?? 5;
     const { data: naFila, error: erroFila } = await sb
       .from('primeiro_contato_fila')
       .insert({
@@ -276,6 +303,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
         contact_id: contatoId,
         deal_id: negocioId,
         conversao_id: conversaoLinha,
+        regra_id: regra.id,
         telefone: telefoneParaFalar,
         variaveis: {
           nome: lead.primeiroNome || lead.nome || '',
@@ -301,6 +329,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
     ok: true,
     contato: contatoId,
     negocio: negocioId,
+    regra: regra?.apelido ?? null,
     fila: filaId,
     semFila: motivoSemFila,
   });
