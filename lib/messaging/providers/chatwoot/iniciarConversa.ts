@@ -212,16 +212,41 @@ export async function abrirConversaComModelo(
   return { ok: true, conversaId: String(conversaId), mensagemId: String(mensagemId) };
 }
 
+/** Quantas variáveis o texto do modelo declara. */
+export function quantasVariaveis(textoDoModelo: string): number {
+  const achadas = new Set(
+    [...String(textoDoModelo || '').matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => Number(m[1]))
+  );
+  return achadas.size === 0 ? 0 : Math.max(...achadas);
+}
+
 /**
- * Troca as variáveis do modelo pelo que veio do formulário.
+ * Troca as variáveis do modelo pelos valores.
  *
- * Variável vazia é recusada de propósito: a Meta rejeita o envio com parâmetro
- * em branco, e "Oi , tudo bem?" seria pior do que não mandar.
+ * Três recusas, todas por motivo prático:
+ *
+ *  - quantidade diferente da que o modelo declara: a Meta rejeita o envio
+ *    inteiro, e o erro dela não diz qual variável faltou;
+ *  - valor em branco: também rejeitado, e "para a . Certo?" seria pior do que
+ *    não mandar;
+ *  - modelo sem variável nenhuma: aceito, mas então não há o que preencher.
+ *
+ * A conferência é aqui e não na hora do envio porque aqui dá para dizer o que
+ * está errado.
  */
 export function preencherModelo(
   textoDoModelo: string,
   valores: string[]
 ): { ok: true; texto: string } | { ok: false; motivo: string } {
+  const esperadas = quantasVariaveis(textoDoModelo);
+
+  if (valores.length !== esperadas) {
+    return {
+      ok: false,
+      motivo: `O modelo declara ${esperadas} variável(is) e foram informados ${valores.length}.`,
+    };
+  }
+
   const vazia = valores.findIndex((v) => !v || !v.trim());
   if (vazia >= 0) {
     return { ok: false, motivo: `A variável ${vazia + 1} do modelo está vazia.` };

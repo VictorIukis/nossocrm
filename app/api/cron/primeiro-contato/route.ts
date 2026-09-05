@@ -87,7 +87,7 @@ export async function GET(req: Request) {
   for (const org of orgs) {
     const { data } = await sb
       .from('organization_settings')
-      .select('rd_primeiro_contato_ativo, rd_modelo_nome, rd_modelo_idioma, rd_modelo_categoria, rd_canal_id, rd_modelo_texto')
+      .select('rd_primeiro_contato_ativo, rd_modelo_nome, rd_modelo_idioma, rd_modelo_categoria, rd_canal_id, rd_modelo_texto, rd_modelo_variaveis')
       .eq('organization_id', org)
       .maybeSingle();
     config.set(org, (data || {}) as Record<string, unknown>);
@@ -144,7 +144,11 @@ export async function GET(req: Request) {
       apiAccessToken: cred.apiAccessToken,
     };
 
-    const valores = [linha.variaveis?.nome ?? '', linha.variaveis?.empresa ?? ''];
+    // A ordem das variáveis é configuração, não convenção: um modelo aprovado
+    // pode ter só a empresa em {{1}}, e mandar o nome ali não dá erro nenhum --
+    // manda "para a Fabricio" e a pessoa lê.
+    const campos = (cfg.rd_modelo_variaveis as string[] | null) ?? ['empresa'];
+    const valores = campos.map((campo) => linha.variaveis?.[campo] ?? '');
     const preenchido = preencherModelo(textoDoModelo, valores);
     if (!preenchido.ok) {
       await encerrar('falhou', preenchido.motivo);

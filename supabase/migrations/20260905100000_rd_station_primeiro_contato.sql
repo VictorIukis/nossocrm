@@ -145,3 +145,17 @@ SELECT cron.schedule(
   );
   $cron$
 );
+
+-- Quais campos entram em cada variável do modelo.
+--
+-- Estava fixo como "nome, empresa" no código. Os modelos aprovados da Bright
+-- desmentem isso: `bright_t0_apresentacao` tem UMA variável, e é a empresa
+-- ("...pedir o Diagnóstico de Receita para a {{1}}"), enquanto
+-- `bright_t0_abertura` tem uma só e é o nome ("Oi {{1}}, tudo bem?").
+--
+-- Ordem errada não dá erro: manda "para a Fabricio" e a pessoa lê.
+ALTER TABLE public.organization_settings
+  ADD COLUMN IF NOT EXISTS rd_modelo_variaveis TEXT[] NOT NULL DEFAULT ARRAY['empresa']::TEXT[];
+
+COMMENT ON COLUMN public.organization_settings.rd_modelo_variaveis IS
+  'Campos que preenchem {{1}}, {{2}}... na ordem. Valores aceitos: nome, empresa, formulario.';
