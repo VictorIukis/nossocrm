@@ -20,6 +20,7 @@
 
 import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
 import { assinaturaConfere, significadoDoEvento } from '@/lib/clicksign/assinatura';
+import { consumirLimite, respostaDeLimite } from '@/lib/seguranca/limiteDeChamada';
 
 export const runtime = 'nodejs';
 
@@ -62,6 +63,15 @@ export async function POST(req: Request) {
   if (!chaveDoDocumento) return json(200, { ok: true, ignorado: 'aviso sem documento' });
 
   const sb = createStaticAdminClient();
+
+  // Freio de vazão por documento. Um contrato gera poucos eventos (envio,
+  // assinatura de cada parte, fechamento); trinta por minuto no mesmo documento
+  // não é uso normal, é laço.
+  const limite = await consumirLimite('clicksign_aviso', chaveDoDocumento, 30, 60);
+  if (!limite.permitido) {
+    console.warn('[clicksign] documento acima do limite:', chaveDoDocumento, limite);
+    return respostaDeLimite(limite.esperaSegundos);
+  }
 
   // Descobre de qual organização é o aviso.
   //

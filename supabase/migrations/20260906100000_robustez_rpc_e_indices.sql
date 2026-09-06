@@ -176,3 +176,59 @@ $$;
 
 REVOKE ALL ON FUNCTION public.primeiros_contatos_de_hoje(UUID) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.primeiros_contatos_de_hoje(UUID) TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- 5. Freio de vazão nos endereços públicos
+-- ---------------------------------------------------------------------------
+--
+-- O webhook do RD e o do Clicksign são públicos por natureza. O segredo impede
+-- que um estranho invente eventos, mas não impede volume -- e o endereço do RD
+-- carrega o segredo na própria URL, porque é o que o RD permite. Endereço
+-- vazado num print, num log de proxy ou colado no lugar errado significa
+-- contato e negócio criados sem limite, e agora também mensagem saindo do
+-- WhatsApp oficial.
+--
+-- A tabela `rate_limits` existia desde o início e nenhuma rota usava.
+
+CREATE INDEX IF NOT EXISTS idx_rate_limits_janela
+  ON public.rate_limits (endpoint, identifier, created_at DESC);
+
+CREATE OR REPLACE FUNCTION public.consumir_limite(
+  p_endpoint TEXT, p_identificador TEXT, p_teto INT, p_janela_segundos INT
+)
+RETURNS TABLE (permitido BOOLEAN, usados INT, espera_segundos INT)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_desde TIMESTAMPTZ := now() - make_interval(secs => p_janela_segundos);
+  v_usados INT;
+  v_mais_antiga TIMESTAMPTZ;
+BEGIN
+  SELECT count(*), min(r.created_at) INTO v_usados, v_mais_antiga
+    FROM public.rate_limits r
+   WHERE r.endpoint = p_endpoint AND r.identifier = p_identificador
+     AND r.created_at > v_desde;
+
+  IF v_usados >= p_teto THEN
+    -- Devolve quanto falta, para a rota responder 429 com Retry-After: é o que
+    -- faz um cliente bem comportado parar em vez de insistir.
+    RETURN QUERY SELECT false, v_usados,
+      GREATEST(1, CEIL(EXTRACT(EPOCH FROM
+        (v_mais_antiga + make_interval(secs => p_janela_segundos)) - now()))::INT);
+    RETURN;
+  END IF;
+
+  INSERT INTO public.rate_limits (identifier, endpoint) VALUES (p_identificador, p_endpoint);
+
+  -- Faxina oportunista: sem isso a tabela cresce para sempre. Uma em cada cem
+  -- chamadas paga a limpeza, o que evita mais uma rotina agendada.
+  IF random() < 0.01 THEN
+    DELETE FROM public.rate_limits WHERE created_at < now() - interval '1 day';
+  END IF;
+
+  RETURN QUERY SELECT true, v_usados + 1, 0;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.consumir_limite(TEXT, TEXT, INT, INT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.consumir_limite(TEXT, TEXT, INT, INT) TO service_role;

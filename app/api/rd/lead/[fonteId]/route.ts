@@ -18,6 +18,7 @@
 
 import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
 import { lerLeadDoRD, normalizarTelefone, respostasEmTexto } from '@/lib/rd/payload';
+import { consumirLimite, respostaDeLimite } from '@/lib/seguranca/limiteDeChamada';
 
 export const runtime = 'nodejs';
 
@@ -79,6 +80,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
 
   if (!segredo || !segredoConfere(segredo, f.secret)) {
     return json(401, { error: 'segredo inválido' });
+  }
+
+  // Freio de vazão, depois de conferir o segredo e antes de escrever qualquer
+  // coisa. Sessenta por minuto por fonte: o RD manda uma conversão por vez, e
+  // sessenta é mais do que uma landing page saudável produz num minuto.
+  const limite = await consumirLimite('rd_lead', f.id, 60, 60);
+  if (!limite.permitido) {
+    console.warn('[rd] fonte acima do limite:', f.id, limite);
+    return respostaDeLimite(limite.esperaSegundos);
   }
 
   const lead = lerLeadDoRD(corpo);
