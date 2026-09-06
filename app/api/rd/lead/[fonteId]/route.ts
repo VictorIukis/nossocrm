@@ -224,7 +224,35 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
   // ---- negócio -------------------------------------------------------------
   const contexto = respostasEmTexto(lead.respostas);
 
-  const { data: negocio, error: erroNegocio } = await sb
+  // Segunda conversão da mesma pessoa não é negócio novo.
+  //
+  // O banco já impede dois negócios do mesmo contato na mesma etapa (gatilho
+  // check_deal_duplicate), e a regra está certa. O que estava errado era eu
+  // tratar a recusa como falha: aconteceu hoje com um lead de verdade, que
+  // converteu duas vezes na mesma landing page em dois segundos. O segundo
+  // aviso virou uma linha sem negócio, e as respostas dele foram perdidas.
+  //
+  // Procurar antes de inserir resolve os dois lados: não cria duplicata e as
+  // respostas novas entram no histórico do negócio que já existe.
+  const etapaDestino = regra?.stage_id || f.entry_stage_id;
+
+  const { data: negocioExistente } = await sb
+    .from('deals')
+    .select('id')
+    .eq('organization_id', f.organization_id)
+    .eq('contact_id', contatoId)
+    .eq('stage_id', etapaDestino)
+    .eq('is_won', false)
+    .eq('is_lost', false)
+    .is('deleted_at', null)
+    .limit(1)
+    .maybeSingle();
+
+  const reaproveitado = (negocioExistente as { id: string } | null)?.id ?? null;
+
+  const { data: negocio, error: erroNegocio } = reaproveitado
+    ? { data: { id: reaproveitado }, error: null }
+    : await sb
     .from('deals')
     .insert({
       organization_id: f.organization_id,
@@ -232,8 +260,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
       contact_id: contatoId,
       // Da regra quando houver; senão, o destino padrão da fonte.
       board_id: regra?.board_id || f.entry_board_id,
-      stage_id: regra?.stage_id || f.entry_stage_id,
-      status: regra?.stage_id || f.entry_stage_id,
+      stage_id: etapaDestino,
+      status: etapaDestino,
       value: 0,
       // As respostas ficam no negócio para quem abrir ver sem procurar.
       custom_fields: {
@@ -275,7 +303,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
       deal_id: negocioId,
       organization_id: f.organization_id,
       type: 'note',
-      description: `Respostas do formulário (${lead.identificador || 'RD Station'}):\n${contexto}`,
+      description:
+        (reaproveitado ? 'Nova conversão do mesmo contato. ' : '') +
+        `Respostas do formulário (${lead.identificador || 'RD Station'}):\n${contexto}`,
       metadata: { origem: 'rd_station', respostas: lead.respostas },
     });
   }
@@ -339,6 +369,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ fonteId: strin
     ok: true,
     contato: contatoId,
     negocio: negocioId,
+    negocioReaproveitado: Boolean(reaproveitado),
     regra: regra?.apelido ?? null,
     fila: filaId,
     semFila: motivoSemFila,
