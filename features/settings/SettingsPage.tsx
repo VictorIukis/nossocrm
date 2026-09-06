@@ -11,6 +11,7 @@ import { McpSection } from './components/McpSection';
 import { AsanaSection } from './components/AsanaSection';
 import { ClicksignSection } from './components/ClicksignSection';
 import { RdSection } from './components/RdSection';
+import { DiagnosticoClient } from '@/features/diagnostico/DiagnosticoClient';
 import { MetaAdsSection } from './components/MetaAdsSection';
 import { GoogleAdsSection } from './components/GoogleAdsSection';
 import { ChannelsSection } from './components/ChannelsSection';
@@ -21,11 +22,11 @@ import { AICenterSettings } from './AICenterSettings';
 
 import { UsersPage } from './UsersPage';
 import { useAuth } from '@/context/AuthContext';
-import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Building2 } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Building2, Activity } from 'lucide-react';
 import { SelectField } from '@/components/ui/FormField';
 import { Button } from '@/components/ui/button';
 
-type SettingsTab = 'general' | 'products' | 'business-units' | 'integrations' | 'ai' | 'data' | 'users';
+type SettingsTab = 'general' | 'products' | 'business-units' | 'integrations' | 'diagnostico' | 'ai' | 'data' | 'users';
 
 interface GeneralSettingsProps {
   hash?: string;
@@ -220,6 +221,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
       setActiveTab('business-units');
     } else if (pathname?.includes('/settings/integracoes')) {
       setActiveTab('integrations');
+    } else if (pathname?.includes('/settings/diagnostico')) {
+      setActiveTab('diagnostico');
     } else if (pathname?.includes('/settings/data')) {
       setActiveTab('data');
     } else if (pathname?.includes('/settings/users')) {
@@ -234,6 +237,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
     ...(profile?.role === 'admin' ? [{ id: 'products' as SettingsTab, name: 'Produtos/Serviços', icon: Package }] : []),
     ...(profile?.role === 'admin' ? [{ id: 'business-units' as SettingsTab, name: 'Unidades', icon: Building2 }] : []),
     ...(profile?.role === 'admin' ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
+    // Fica aqui, e não na barra lateral, por dois motivos: é de administrador, e
+    // a barra é lida por quem vende. Item que devolve "sem permissão" para
+    // metade do time é ruído.
+    ...(profile?.role === 'admin' ? [{ id: 'diagnostico' as SettingsTab, name: 'Diagnóstico', icon: Activity }] : []),
     { id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles },
     { id: 'data' as SettingsTab, name: 'Dados', icon: Database },
     ...(profile?.role === 'admin' ? [{ id: 'users' as SettingsTab, name: 'Equipe', icon: Users }] : []),
@@ -241,6 +248,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'diagnostico':
+        return <div className="pb-10"><DiagnosticoClient /></div>;
       case 'products':
         return <ProductsSettings />;
       case 'business-units':

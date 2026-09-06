@@ -81,3 +81,44 @@ CREATE INDEX IF NOT EXISTS idx_audit_usuario ON public.audit_logs (user_id);
 
 CREATE INDEX IF NOT EXISTS idx_deal_items_org ON public.deal_items (organization_id);
 CREATE INDEX IF NOT EXISTS idx_deal_items_produto ON public.deal_items (product_id);
+
+-- ---------------------------------------------------------------------------
+-- 3. O que o banco sabe sobre as próprias rotinas
+-- ---------------------------------------------------------------------------
+--
+-- As tabelas do pg_cron ficam no schema `cron`, que a credencial do servidor
+-- não lê. Sem isto, a tela de diagnóstico não responde a pergunta mais básica:
+-- "a rotina que manda as mensagens rodou?".
+--
+-- Devolve resumo e não histórico: quem olha quer saber se rodou, quando, e se
+-- falhou nas últimas 24 horas. O código HTTP entra junto porque, para o
+-- pg_cron, "succeeded" significa que a chamada saiu -- não que o outro lado
+-- aceitou. Cem execuções bem-sucedidas devolvendo 500 continuam sendo cem
+-- mensagens que não saíram.
+
+CREATE OR REPLACE FUNCTION public.diagnostico_rotinas()
+RETURNS TABLE (
+  nome TEXT, agendamento TEXT, ativa BOOLEAN,
+  ultima_execucao TIMESTAMPTZ, ultimo_status TEXT, falhas_24h BIGINT,
+  ultimo_http INT, ultimo_http_em TIMESTAMPTZ
+)
+LANGUAGE sql SECURITY DEFINER SET search_path = public, cron, net, pg_temp
+AS $$
+  SELECT
+    j.jobname::TEXT, j.schedule::TEXT, j.active,
+    (SELECT max(d.end_time) FROM cron.job_run_details d WHERE d.jobid = j.jobid),
+    (SELECT d.status FROM cron.job_run_details d WHERE d.jobid = j.jobid
+      ORDER BY d.end_time DESC NULLS LAST LIMIT 1)::TEXT,
+    (SELECT count(*) FROM cron.job_run_details d
+      WHERE d.jobid = j.jobid AND d.status <> 'succeeded'
+        AND d.end_time > now() - interval '24 hours'),
+    CASE WHEN j.command LIKE '%net.http%' THEN
+      (SELECT r.status_code FROM net._http_response r ORDER BY r.created DESC LIMIT 1) END,
+    CASE WHEN j.command LIKE '%net.http%' THEN
+      (SELECT r.created FROM net._http_response r ORDER BY r.created DESC LIMIT 1) END
+  FROM cron.job j
+  ORDER BY j.jobname;
+$$;
+
+REVOKE ALL ON FUNCTION public.diagnostico_rotinas() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.diagnostico_rotinas() TO service_role;
