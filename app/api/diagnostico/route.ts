@@ -200,9 +200,9 @@ export async function GET() {
     .select('user_id, refresh_token, channel_expires_at, last_synced_at, last_error')
     .not('refresh_token', 'is', null);
 
-  const { count: naFilaAgenda } = await sb
+  const { data: filaAgenda } = await sb
     .from('calendar_sync_queue')
-    .select('activity_id', { count: 'exact', head: true });
+    .select('criado_em, ultimo_erro');
 
   const { count: remocoesPendentes } = await sb
     .from('calendar_deletions')
@@ -214,31 +214,72 @@ export async function GET() {
     last_error: string | null;
   }>;
 
-  // Canal de avisos vence e o Google não avisa: apenas para de bater. É a
-  // falha que morre em silêncio, então entra como aviso antes de vencer.
-  const vencendo = cx.filter(
-    (c) => c.channel_expires_at && new Date(c.channel_expires_at).getTime() < agora + 3 * 24 * 3_600_000
+  // O que medir aqui NÃO é "quando puxamos do Google pela última vez".
+  //
+  // A leitura só acontece quando o Google avisa que algo mudou, ou quando
+  // alguém abre a tela da agenda. Numa semana sem mexer no calendário, o
+  // silêncio é o comportamento correto -- e cobrar prazo dele pintava de
+  // amarelo uma integração saudável. Vi isso na própria tela, no primeiro dia:
+  // "sem sinal há 3 dias" com o canal válido por mais um mês.
+  //
+  // O que de fato quebra em silêncio é outra coisa:
+  //
+  //  1. o canal de avisos expira, e o Google só para de bater, sem avisar;
+  //  2. a fila de envio para de ser drenada, e o compromisso criado aqui nunca
+  //     chega na agenda de ninguém.
+  const canalVencido = cx.filter(
+    (c) => !c.channel_expires_at || new Date(c.channel_expires_at).getTime() < agora
+  ).length;
+
+  const canalVencendo = cx.filter(
+    (c) =>
+      c.channel_expires_at &&
+      new Date(c.channel_expires_at).getTime() >= agora &&
+      new Date(c.channel_expires_at).getTime() < agora + 3 * 24 * 3_600_000
+  ).length;
+
+  const fa = (filaAgenda ?? []) as Array<{ criado_em: string; ultimo_erro: string | null }>;
+
+  // Uma hora: a fila é drenada ao salvar e pela rotina diária. Item parado
+  // além disso significa que os dois caminhos falharam.
+  const paradasNaFila = fa.filter(
+    (f) => new Date(f.criado_em).getTime() < agora - 3_600_000
   ).length;
 
   itens.push({
     nome: 'Agenda do Google',
     numeros: [
       { rotulo: 'pessoas conectadas', valor: cx.length },
-      { rotulo: 'na fila de envio', valor: naFilaAgenda ?? 0 },
+      { rotulo: 'na fila de envio', valor: fa.length },
       { rotulo: 'remoções pendentes', valor: remocoesPendentes ?? 0 },
     ],
     ...julgar(
       {
         ligado: cx.length > 0,
-        ultimoSucesso: cx.map((c) => c.last_synced_at).filter(Boolean).sort().pop() ?? null,
+        // O sucesso aqui é o canal estar de pé, não a última leitura.
+        ultimoSucesso: canalVencido === 0 && cx.length > 0 ? new Date(agora).toISOString() : null,
         ultimoErro:
           cx.map((c) => c.last_error).find(Boolean) ??
-          (vencendo > 0 ? `${vencendo} canal(is) de aviso vencem em menos de 3 dias` : null),
-        silencioSuspeitoEmHoras: 48,
+          fa.map((f) => f.ultimo_erro).find(Boolean) ??
+          (canalVencido > 0
+            ? `${canalVencido} canal(is) de aviso venceram: o Google parou de avisar`
+            : paradasNaFila > 0
+              ? `${paradasNaFila} compromisso(s) presos na fila há mais de uma hora`
+              : null),
       },
       agora
     ),
   });
+
+  if (canalVencendo > 0 && canalVencido === 0) {
+    // Aviso antes de virar problema: a renovação é diária, então três dias de
+    // folga significam três tentativas antes de o Google emudecer.
+    const ultimo = itens[itens.length - 1];
+    if (ultimo.estado === 'ok') {
+      ultimo.estado = 'atencao';
+      ultimo.resumo = `${canalVencendo} canal(is) de aviso vencem em menos de 3 dias`;
+    }
+  }
 
   // ---- Ads ----------------------------------------------------------------
   itens.push({
@@ -288,19 +329,37 @@ export async function GET() {
     .limit(1)
     .maybeSingle();
 
+  // Fila vazia e sem falha é "nada a fazer", não "nunca funcionou".
+  //
+  // A tela dizia "nunca funcionou desde que foi configurado" porque a tabela de
+  // registro está vazia, e isso é verdade sem ser informação: a fila só recebe
+  // linha quando o agente sugere avanço de etapa. Quem lê iria caçar um defeito
+  // que não existe.
+  //
+  // O que importa é fila presa: pendente que ninguém consumiu significa que a
+  // rotina parou, e aí avanço de etapa deixa de acontecer sem ninguém notar.
+  const iaSemNada = iaPendentes === 0 && iaFalhas === 0;
+
   itens.push({
     nome: 'IA (fila de avaliação)',
     numeros: [
       { rotulo: 'pendentes', valor: iaPendentes },
       { rotulo: 'falharam', valor: iaFalhas },
     ],
-    ...julgar(
-      {
-        ultimoSucesso: (ultimoUso as { created_at?: string } | null)?.created_at ?? null,
-        ultimoErro: iaFalhas > 0 ? `${iaFalhas} avaliação(ões) falharam` : null,
-      },
-      agora
-    ),
+    ...(iaSemNada
+      ? {
+          estado: 'ok' as const,
+          resumo: (ultimoUso as { created_at?: string } | null)?.created_at
+            ? 'Nada pendente'
+            : 'Nada pendente (a fila ainda não recebeu nenhuma avaliação)',
+        }
+      : julgar(
+          {
+            ultimoSucesso: (ultimoUso as { created_at?: string } | null)?.created_at ?? null,
+            ultimoErro: iaFalhas > 0 ? `${iaFalhas} avaliação(ões) falharam` : null,
+          },
+          agora
+        )),
   });
 
   const piorEstado = ['parado', 'atencao', 'sem_sinal', 'desligado', 'ok'].find((e) =>
