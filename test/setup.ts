@@ -86,3 +86,37 @@ afterAll(async () => {
     // ignore
   }
 });
+
+// ---------------------------------------------------------------------------
+// Nenhum teste fala com a rede de fora
+// ---------------------------------------------------------------------------
+//
+// A suíte imprimia dois `ENOTFOUND test.supabase.co` em toda execução. Ninguém
+// falhava por isso, e é justamente o problema: erro que aparece sempre e não
+// quebra nada ensina a pessoa a passar o olho pela saída dos testes sem ler. O
+// dia em que um erro de verdade aparecer ali, ele vai parecer com o de sempre.
+//
+// Em vez de caçar a chamada, a suíte passa a recusar rede externa e a dizer
+// quem tentou. Endereço local continua liberado: o teste que confere o formato
+// das requisições do Chatwoot sobe um servidor em 127.0.0.1 de propósito.
+const fetchOriginal = globalThis.fetch;
+
+const ENDERECO_LOCAL = /^(https?:\/\/)?(127\.0\.0\.1|localhost|\[::1\])(:\d+)?(\/|$)/i;
+
+globalThis.fetch = (async (entrada: RequestInfo | URL, init?: RequestInit) => {
+  const url =
+    typeof entrada === 'string'
+      ? entrada
+      : entrada instanceof URL
+        ? entrada.toString()
+        : (entrada as Request).url;
+
+  if (ENDERECO_LOCAL.test(url)) return fetchOriginal(entrada as RequestInfo, init);
+
+  throw new Error(
+    `Teste tentou falar com a rede: ${url}\n` +
+      'Rede externa está bloqueada na suíte de propósito. Use vi.mock no módulo ' +
+      'que faz a chamada, ou suba um servidor local (127.0.0.1), como faz ' +
+      'test/chatwootAbrirConversa.test.ts.'
+  );
+}) as typeof fetch;
