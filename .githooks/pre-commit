@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# NossoCRM pre-commit precheck:
-# - lint (zero warnings)
-# - typecheck
-# - tests (single run)
-# - build (compile check)
+# Guarda de commit: lint + typecheck + testes.
 #
-# Tip: if you need a faster inner loop, run:
-#   npm run precheck:fast
+# Sem build, de propósito. O build leva mais de um minuto e, cobrado em cada
+# commit, o que acontece na prática é a pessoa aprender a usar --no-verify --
+# e aí o guarda deixa de existir. O build fica no pre-push, que roda uma vez
+# por conjunto de commits.
+#
+# Este arquivo só funciona se o git souber dele. Quem clona o repositório
+# recebe isso pelo `prepare` do package.json, que roda no npm install.
 
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
-echo "[pre-commit] Running precheck (lint + typecheck + tests + build)..."
-npm run -s precheck
-
-
+echo "[pre-commit] lint + typecheck + testes..."
+npm run -s precheck:fast

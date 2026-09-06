@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Última linha de defesa antes de o código sair da máquina: precheck completo,
+# com build.
+#
+# Ela importa mais do que o normal aqui porque o CI do GitHub não está
+# habilitado no repositório: nada roda os testes do outro lado. Enquanto for
+# assim, o que não passar aqui vai para produção sem ninguém conferir.
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+echo "[pre-push] precheck completo (lint + typecheck + testes + build)..."
+npm run -s precheck
