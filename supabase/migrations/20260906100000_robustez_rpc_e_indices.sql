@@ -122,3 +122,57 @@ $$;
 
 REVOKE ALL ON FUNCTION public.diagnostico_rotinas() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.diagnostico_rotinas() TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- 4. Freios do disparo automático: horário e teto diário
+-- ---------------------------------------------------------------------------
+--
+-- O primeiro contato sai por conta própria, minutos depois do cadastro.
+-- Faltavam dois freios, os dois com consequência real:
+--
+--  1. HORÁRIO. Sem janela, quem preenche o formulário às 3 da manhã é acordado
+--     às 3 da manhã. No WhatsApp oficial isso custa alcance: bloqueio e
+--     "marcar como spam" derrubam a qualidade do número, e número com
+--     qualidade baixa entrega menos para todo mundo, inclusive para quem está
+--     esperando resposta.
+--
+--  2. TETO DIÁRIO. Enxurrada de leads, ou o endereço do webhook vazando, vira
+--     enxurrada de mensagem de modelo saindo do número da empresa. Volume
+--     anormal é sinal ruim para a Meta, e o número pode ser limitado.
+--
+-- Padrões conservadores: 9h às 20h e 100 por dia. Lead fora do horário não
+-- perde a mensagem, ela é remarcada para a abertura seguinte.
+
+ALTER TABLE public.organization_settings
+  ADD COLUMN IF NOT EXISTS rd_janela_inicio INT NOT NULL DEFAULT 9
+    CHECK (rd_janela_inicio BETWEEN 0 AND 23),
+  ADD COLUMN IF NOT EXISTS rd_janela_fim INT NOT NULL DEFAULT 20
+    CHECK (rd_janela_fim BETWEEN 0 AND 23),
+  ADD COLUMN IF NOT EXISTS rd_limite_diario INT NOT NULL DEFAULT 100
+    CHECK (rd_limite_diario BETWEEN 1 AND 10000);
+
+-- Quantos já saíram hoje, no fuso da organização.
+--
+-- A conta fica no banco porque a virada do dia depende do fuso, e porque a
+-- rotina roda a cada minuto: fazer isso em memória exigiria carregar a fila
+-- inteira toda vez.
+CREATE OR REPLACE FUNCTION public.primeiros_contatos_de_hoje(org UUID)
+RETURNS BIGINT
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT count(*)
+    FROM public.primeiro_contato_fila f
+   WHERE f.organization_id = org
+     AND f.status = 'enviado'
+     AND f.enviado_em >= date_trunc(
+           'day',
+           now() AT TIME ZONE COALESCE(
+             (SELECT s.timezone FROM public.organization_settings s
+               WHERE s.organization_id = org), 'America/Sao_Paulo')
+         ) AT TIME ZONE COALESCE(
+             (SELECT s.timezone FROM public.organization_settings s
+               WHERE s.organization_id = org), 'America/Sao_Paulo');
+$$;
+
+REVOKE ALL ON FUNCTION public.primeiros_contatos_de_hoje(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.primeiros_contatos_de_hoje(UUID) TO service_role;

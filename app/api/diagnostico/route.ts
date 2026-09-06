@@ -67,6 +67,7 @@ export async function GET() {
     .select(
       'clicksign_webhook_secret, clicksign_last_event_at, clicksign_last_error,' +
         ' rd_primeiro_contato_ativo, rd_ultimo_erro, rd_canal_id,' +
+        ' rd_janela_inicio, rd_janela_fim, rd_limite_diario, timezone,' +
         ' meta_ads_token, meta_ads_last_error, google_ads_refresh_token, google_ads_last_error,' +
         ' ads_modo_demo'
     )
@@ -152,9 +153,18 @@ export async function GET() {
     .sort()
     .pop();
 
+  const { data: enviadasHoje } = await sb.rpc('primeiros_contatos_de_hoje', { org });
+  const limiteDiario = (cfg.rd_limite_diario as number) ?? 100;
+  const saiuHoje = Number(enviadasHoje ?? 0);
+
+  // Fila com hora futura é o comportamento normal fora do horário: a mensagem
+  // foi remarcada, não perdida. Só conta como atrasada a que passou da hora e
+  // continua parada, que é o sintoma de rotina morta.
   itens.push({
     nome: 'Primeiro contato no WhatsApp',
+    detalhe: `${cfg.rd_janela_inicio ?? 9}h às ${cfg.rd_janela_fim ?? 20}h`,
     numeros: [
+      { rotulo: `enviadas hoje (teto ${limiteDiario})`, valor: saiuHoje },
       { rotulo: 'na fila', valor: contagem.aguardando ?? 0 },
       { rotulo: 'atrasadas', valor: atrasadas },
       { rotulo: 'enviadas', valor: contagem.enviado ?? 0 },
@@ -172,6 +182,14 @@ export async function GET() {
       agora
     ),
   });
+
+  // Teto alcançado não é defeito: é o freio funcionando. Mas precisa aparecer,
+  // porque significa fila esperando o dia seguinte.
+  if (saiuHoje >= limiteDiario && (contagem.aguardando ?? 0) > 0) {
+    const ultimo = itens[itens.length - 1];
+    ultimo.estado = 'atencao';
+    ultimo.resumo = `Teto de ${limiteDiario} por dia alcançado; ${contagem.aguardando} esperando amanhã`;
+  }
 
   // ---- Clicksign ----------------------------------------------------------
   const { count: aguardandoAssinatura } = await sb

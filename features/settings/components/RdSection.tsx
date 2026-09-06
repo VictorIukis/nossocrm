@@ -37,7 +37,12 @@ interface Dados {
     rd_primeiro_contato_ativo?: boolean;
     rd_canal_id?: string;
     rd_ultimo_erro?: string;
+    rd_janela_inicio?: number;
+    rd_janela_fim?: number;
+    rd_limite_diario?: number;
+    timezone?: string;
   };
+  enviadasHoje: number;
   fontes: Fonte[];
   canais: Canal[];
   regras: Regra[];
@@ -77,6 +82,9 @@ export function RdSection() {
   const [copiada, setCopiada] = useState<string | null>(null);
 
   const [canalId, setCanalId] = useState('');
+  const [janelaInicio, setJanelaInicio] = useState(9);
+  const [janelaFim, setJanelaFim] = useState(20);
+  const [limiteDiario, setLimiteDiario] = useState(100);
 
   const carregar = useCallback(async () => {
     try {
@@ -88,6 +96,9 @@ export function RdSection() {
       }
       setD(dados);
       setCanalId(dados.config.rd_canal_id ?? '');
+      setJanelaInicio(dados.config.rd_janela_inicio ?? 9);
+      setJanelaFim(dados.config.rd_janela_fim ?? 20);
+      setLimiteDiario(dados.config.rd_limite_diario ?? 100);
     } catch {
       setErro('Não consegui falar com o servidor.');
     } finally {
@@ -117,6 +128,9 @@ export function RdSection() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           canalId: canalId || null,
+          janelaInicio,
+          janelaFim,
+          limiteDiario,
           ...(ligar === undefined ? {} : { ativo: ligar }),
         }),
       });
@@ -230,6 +244,62 @@ export function RdSection() {
             Vale para todas as regras: é o número da Sofia que abre a conversa.
           </p>
         </div>
+
+        <div className="grid sm:grid-cols-3 gap-3">
+          <div>
+            <label htmlFor="rd-janela-inicio" className={ROTULO}>Só mandar a partir das</label>
+            <select
+              id="rd-janela-inicio"
+              value={janelaInicio}
+              disabled={salvando}
+              onChange={(e) => setJanelaInicio(Number(e.target.value))}
+              className={CAMPO}
+            >
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="rd-janela-fim" className={ROTULO}>e parar às</label>
+            <select
+              id="rd-janela-fim"
+              value={janelaFim}
+              disabled={salvando}
+              onChange={(e) => setJanelaFim(Number(e.target.value))}
+              className={CAMPO}
+            >
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="rd-limite" className={ROTULO}>No máximo por dia</label>
+            <input
+              id="rd-limite"
+              type="number"
+              min={1}
+              max={10000}
+              value={limiteDiario}
+              disabled={salvando}
+              onChange={(e) => setLimiteDiario(Number(e.target.value))}
+              className={CAMPO}
+            />
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Lead que chega fora do horário não perde a mensagem: ela é remarcada para a abertura do
+          dia seguinte. O teto existe para proteger a qualidade do número: volume anormal de
+          mensagem de modelo é sinal ruim para a Meta, e número com qualidade baixa entrega menos
+          para todo mundo, inclusive para quem está esperando resposta.
+          {typeof d?.enviadasHoje === 'number' && (
+            <> Hoje saíram <strong>{d.enviadasHoje}</strong> de {limiteDiario}.</>
+          )}
+        </p>
 
         {erro && (
           <p className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">

@@ -46,8 +46,8 @@ export async function GET() {
   const { data: cfg } = await sb
     .from('organization_settings')
     .select(
-      'rd_primeiro_contato_ativo, rd_atraso_minutos, rd_modelo_nome, rd_modelo_texto,' +
-        ' rd_modelo_variaveis, rd_modelo_idioma, rd_modelo_categoria, rd_canal_id, rd_ultimo_erro'
+      'rd_primeiro_contato_ativo, rd_canal_id, rd_ultimo_erro,' +
+        ' rd_janela_inicio, rd_janela_fim, rd_limite_diario, timezone'
     )
     .eq('organization_id', ctx.organizationId)
     .maybeSingle();
@@ -72,6 +72,10 @@ export async function GET() {
     .from('rd_conversoes')
     .select('id', { count: 'exact', head: true })
     .eq('organization_id', ctx.organizationId);
+
+  const { data: enviadasHoje } = await sb.rpc('primeiros_contatos_de_hoje', {
+    org: ctx.organizationId,
+  });
 
   const { data: fila } = await sb
     .from('primeiro_contato_fila')
@@ -141,6 +145,7 @@ export async function GET() {
       funil: nomeDoFunil.get(e.board_id) ?? 'Funil',
     })),
     formulariosVistos,
+    enviadasHoje: Number(enviadasHoje ?? 0),
     leadsRecebidos: leadsRecebidos ?? 0,
     fila: contagem,
     ultimos: ultimos ?? [],
@@ -157,6 +162,9 @@ export async function POST(req: Request) {
   const corpo = (await req.json().catch(() => null)) as {
     ativo?: boolean;
     canalId?: string | null;
+    janelaInicio?: number;
+    janelaFim?: number;
+    limiteDiario?: number;
   } | null;
 
   if (!corpo) return json({ error: 'Corpo inválido' }, 400);
@@ -164,6 +172,18 @@ export async function POST(req: Request) {
   const mudanca: Record<string, unknown> = { rd_ultimo_erro: null };
 
   if (corpo.canalId !== undefined) mudanca.rd_canal_id = corpo.canalId || null;
+
+  for (const [campo, valor, min, max] of [
+    ['rd_janela_inicio', corpo.janelaInicio, 0, 23],
+    ['rd_janela_fim', corpo.janelaFim, 0, 23],
+    ['rd_limite_diario', corpo.limiteDiario, 1, 10000],
+  ] as Array<[string, number | undefined, number, number]>) {
+    if (valor === undefined) continue;
+    if (!Number.isFinite(valor) || valor < min || valor > max) {
+      return json({ error: `Valor fora do permitido em ${campo}.` }, 400);
+    }
+    mudanca[campo] = Math.round(valor);
+  }
 
   // Conferir antes de ligar, e não na hora de enviar.
   //

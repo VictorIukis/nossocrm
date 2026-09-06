@@ -16,6 +16,8 @@ import {
   preencherModelo,
   type ContaChatwoot,
 } from '@/lib/messaging/providers/chatwoot/iniciarConversa';
+import { janelaAberta, proximaAbertura } from '@/lib/rd/janela';
+import { FUSO_PADRAO } from '@/lib/formato/horario';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -91,6 +93,8 @@ export async function GET(req: Request) {
 
   let enviados = 0;
   let falhas = 0;
+  let adiados = 0;
+  let barrados = 0;
 
   // Configuração por organização (chave mestra e canal) e regra por formulário
   // (o que dizer). Buscadas uma vez por rodada.
@@ -100,10 +104,22 @@ export async function GET(req: Request) {
   for (const org of orgs) {
     const { data } = await sb
       .from('organization_settings')
-      .select('rd_primeiro_contato_ativo, rd_canal_id')
+      .select(
+        'rd_primeiro_contato_ativo, rd_canal_id, rd_janela_inicio, rd_janela_fim,' +
+          ' rd_limite_diario, timezone'
+      )
       .eq('organization_id', org)
       .maybeSingle();
     config.set(org, (data || {}) as Record<string, unknown>);
+  }
+
+  // Quantos já saíram hoje, por organização. Buscado uma vez por rodada: a
+  // rotina roda a cada minuto e a conta da virada do dia depende do fuso de
+  // cada uma, então quem sabe fazer é o banco.
+  const jaSairam = new Map<string, number>();
+  for (const org of orgs) {
+    const { data } = await sb.rpc('primeiros_contatos_de_hoje', { org });
+    jaSairam.set(org, Number(data ?? 0));
   }
 
   const idsDeRegra = [...new Set(lote.map((l) => l.regra_id).filter(Boolean))] as string[];
@@ -136,6 +152,56 @@ export async function GET(req: Request) {
     // Chave desligada entre a entrada do lead e a hora do envio: não manda.
     if (!cfg.rd_primeiro_contato_ativo) {
       await encerrar('cancelado', 'primeiro contato desligado nas configurações');
+      continue;
+    }
+
+    const fuso = (cfg.timezone as string) || FUSO_PADRAO;
+    const janela = {
+      inicio: (cfg.rd_janela_inicio as number) ?? 9,
+      fim: (cfg.rd_janela_fim as number) ?? 20,
+      fuso,
+    };
+
+    // Fora do horário: remarca em vez de mandar.
+    //
+    // Volta para 'aguardando' com a hora da abertura, e devolve a tentativa que
+    // a reserva consumiu -- adiar não é erro, e gastar tentativa aqui faria a
+    // mensagem morrer depois de três noites.
+    if (!janelaAberta(new Date(), janela)) {
+      const abre = proximaAbertura(new Date(), janela);
+      await sb
+        .from('primeiro_contato_fila')
+        .update({
+          status: 'aguardando',
+          enviar_em: abre.toISOString(),
+          tentativas: Math.max(0, linha.tentativas - 1),
+          ultimo_erro: null,
+        })
+        .eq('id', linha.id);
+      adiados++;
+      continue;
+    }
+
+    // Teto diário: protege a qualidade do número oficial.
+    //
+    // Volume anormal de mensagem de modelo é sinal ruim para a Meta, e número
+    // com qualidade baixa entrega menos para todo mundo. A linha fica na fila
+    // para amanhã, sem gastar tentativa.
+    const limite = (cfg.rd_limite_diario as number) ?? 100;
+    const contagemHoje = jaSairam.get(linha.organization_id) ?? 0;
+
+    if (contagemHoje >= limite) {
+      const abre = proximaAbertura(new Date(), janela);
+      await sb
+        .from('primeiro_contato_fila')
+        .update({
+          status: 'aguardando',
+          enviar_em: abre.toISOString(),
+          tentativas: Math.max(0, linha.tentativas - 1),
+          ultimo_erro: `Teto de ${limite} por dia alcançado; remarcado`,
+        })
+        .eq('id', linha.id);
+      barrados++;
       continue;
     }
 
@@ -211,6 +277,7 @@ export async function GET(req: Request) {
     if (r.ok) {
       await encerrar('enviado', null, r.conversaId);
       enviados++;
+      jaSairam.set(linha.organization_id, contagemHoje + 1);
 
       if (linha.deal_id) {
         await sb.from('deal_activities').insert({
@@ -248,5 +315,5 @@ export async function GET(req: Request) {
     }
   }
 
-  return json({ enviados, falhas, lote: lote.length });
+  return json({ enviados, falhas, adiados, barrados, lote: lote.length });
 }
