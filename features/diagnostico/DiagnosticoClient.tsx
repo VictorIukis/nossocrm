@@ -63,7 +63,9 @@ const APARENCIA: Record<Estado, { rotulo: string; classe: string; Icone: typeof 
 };
 
 const FRASE_DO_RESUMO: Record<Estado, string> = {
-  ok: 'Tudo funcionando.',
+  // "Tudo funcionando" e não "tudo ligado": há integração desligada de
+  // propósito, e desligado não é defeito. O resumo fala de problema.
+  ok: 'Nada quebrado.',
   atencao: 'Alguma coisa pede atenção.',
   parado: 'Alguma coisa parou.',
   sem_sinal: 'Há integração que nunca funcionou.',

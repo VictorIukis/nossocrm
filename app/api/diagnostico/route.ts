@@ -380,13 +380,25 @@ export async function GET() {
         )),
   });
 
-  const piorEstado = ['parado', 'atencao', 'sem_sinal', 'desligado', 'ok'].find((e) =>
-    [...itens, ...rotinas].some((i) => i.estado === e)
+  // O resumo é a primeira coisa que se lê, e ele precisa dizer se há PROBLEMA.
+  //
+  // "Desligado" não é problema, e tratá-lo como um pior estado fazia a tela
+  // anunciar "nada ligado por aqui" com seis integrações no ar, só porque duas
+  // estavam desligadas de propósito. Vi isso na tela publicada.
+  //
+  // Então: desligado só vira o resumo quando é o que existe. Enquanto houver
+  // qualquer coisa funcionando, o resumo fala do pior problema de verdade.
+  const todos = [...itens, ...rotinas];
+  const problema = (['parado', 'atencao', 'sem_sinal'] as const).find((e) =>
+    todos.some((i) => i.estado === e)
   );
+  const algumOk = todos.some((i) => i.estado === 'ok');
+
+  const resumo = problema ?? (algumOk ? 'ok' : 'desligado');
 
   return json({
     verificadoEm: new Date(agora).toISOString(),
-    resumo: piorEstado ?? 'ok',
+    resumo,
     integracoes: itens,
     rotinas,
   });
