@@ -60,6 +60,8 @@ import { formatPriorityPtBr } from '@/lib/utils/priority';
 import { BriefingDrawer } from '@/features/deals/components/BriefingDrawer';
 import { formatarDinheiro } from '@/lib/formato/dinheiro';
 import { AIExtractedFields } from '@/features/deals/components/AIExtractedFields';
+import { HistoricoDoNegocio } from '@/features/deals/components/HistoricoDoNegocio';
+import { useAdicionarNota } from '@/lib/query/hooks/useDealHistoryQuery';
 
 interface DealDetailModalProps {
   dealId: string | null;
@@ -156,6 +158,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
   const { data: products = [] } = useActiveProducts();
   const customFieldDefinitions: import('@/types').CustomFieldDefinition[] = [];
   const { profile } = useAuth();
+  const adicionarNota = useAdicionarNota();
   const { addToast } = useToast();
   const router = useRouter();
 
@@ -360,23 +363,19 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
     }
   };
 
+  // A nota vai para o histórico do negócio, junto do que a máquina faz.
+  //
+  // Antes ela virava uma "tarefa concluída" na tabela de compromissos: um
+  // registro de fato passado guardado como se fosse coisa a fazer. Nunca houve
+  // uma linha dessas em produção, então a troca não deixa nada para trás.
   const handleAddNote = () => {
-    if (!newNote.trim()) return;
+    const texto = newNote.trim();
+    if (!texto || !deal || !profile?.organization_id) return;
 
-    const noteActivity: Activity = {
-      id: crypto.randomUUID(),
-      dealId: deal.id,
-      dealTitle: deal.title,
-      type: 'NOTE',
-      title: 'Nota Adicionada',
-      description: newNote,
-      date: new Date().toISOString(),
-      user: { name: 'Eu', avatar: 'https://i.pravatar.cc/150?u=me' },
-      completed: true,
-    };
-
-    addActivity(noteActivity);
-    setNewNote('');
+    adicionarNota.mutate(
+      { dealId: deal.id, organizationId: profile.organization_id, texto },
+      { onSuccess: () => setNewNote('') }
+    );
   };
 
   const handleAddProduct = () => {
@@ -944,10 +943,10 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                         <div />
                         <button
                           onClick={handleAddNote}
-                          disabled={!newNote.trim()}
+                          disabled={!newNote.trim() || adicionarNota.isPending}
                           className="bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all"
                         >
-                          <Check size={14} /> Enviar
+                          <Check size={14} /> {adicionarNota.isPending ? 'Salvando…' : 'Enviar'}
                         </button>
                       </div>
                     </div>
@@ -972,6 +971,18 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                           onDelete={id => deleteActivity(id)}
                         />
                       ))}
+                    </div>
+
+                    {/* O que aconteceu, separado do que falta fazer.
+                        As duas coisas conviviam sem distinção: tarefa é
+                        compromisso futuro, histórico é fato passado, e boa
+                        parte dele é feita pela máquina. */}
+                    <div className="pt-2">
+                      <h3 className="text-xs font-bold uppercase tracking-wide text-slate-400
+                        dark:text-slate-500 mb-3">
+                        O que aconteceu
+                      </h3>
+                      <HistoricoDoNegocio dealId={deal.id} />
                     </div>
                   </div>
                 )}

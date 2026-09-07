@@ -21,7 +21,11 @@ import type { ConversationFilters } from '@/lib/messaging/types';
  */
 export const queryKeys = {
     // Standard entity keys (using factory)
-    deals: createQueryKeys('deals'),
+    // Deals com extensão para o histórico do negócio (deal_activities), que é
+    // por negócio e não entra no cache da lista.
+    deals: createExtendedQueryKeys('deals', base => ({
+        historico: (dealId: string) => [...base.all, 'historico', dealId] as const,
+    })),
 
     // Contacts with custom extension for paginated queries and stage counts
     contacts: createExtendedQueryKeys('contacts', base => ({

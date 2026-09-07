@@ -85,6 +85,16 @@ vi.mock('@/lib/query/hooks', () => ({
   useDeleteActivity: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
 }));
 
+// O histórico do negócio lê e escreve pelo cliente do Supabase, e a escrita usa
+// o cliente de cache. Sem este mock, o modal exige um provedor que este teste
+// não monta -- e o assunto dele é o modal abrir e fechar sem quebrar, não o
+// histórico. O conteúdo do histórico tem teste próprio.
+vi.mock('@/lib/query/hooks/useDealHistoryQuery', () => ({
+  useDealHistoryQuery: () => ({ data: [], isLoading: false, error: null }),
+  useAdicionarNota: () => ({ mutate: vi.fn(), isPending: false }),
+  NOME_DO_TIPO: {},
+}));
+
 vi.mock('@/lib/query/hooks/useProductsQuery', () => ({
   useActiveProducts: () => ({ data: [] }),
 }));
