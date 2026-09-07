@@ -315,18 +315,44 @@ export const useBoardsController = () => {
     stageId: string;
   } | null>(null);
 
-  // Open deal from URL param (e.g., /boards?deal=xxx)
+  // Abrir negócio e funil pela URL: /boards?board=xxx&deal=yyy
+  //
+  // O `board` chegou junto com o link direto para um negócio (/deals/<id>).
+  // Sem ele, o link abria a ficha por cima do funil que a pessoa tinha aberto
+  // antes: a ficha certa sobre as colunas de outro quadro, o que só aparece
+  // quando alguém tenta arrastar e o card some.
   useEffect(() => {
     if (!searchParams) return;
-    const dealIdFromUrl = searchParams.get('deal');
-    if (dealIdFromUrl && !selectedDealId) {
-      setSelectedDealId(dealIdFromUrl);
-      // Clear the param from URL using router
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete('deal');
-      router.replace(`?${params.toString()}`, { scroll: false });
+
+    const boardIdDaUrl = searchParams.get('board');
+    const dealIdDaUrl = searchParams.get('deal');
+    if (!boardIdDaUrl && !dealIdDaUrl) return;
+
+    // Espera os funis carregarem antes de decidir.
+    //
+    // Sem isto há uma corrida que só aparece no caso que importa: quem chega
+    // por link recarrega a página, os funis ainda estão vindo, a lista está
+    // vazia, o funil da URL "não existe" e o parâmetro é apagado antes de ser
+    // usado. Local funcionaria; no ar, não.
+    if (boardIdDaUrl && !boardsFetched) return;
+
+    // Só troca de funil se ele existir para esta pessoa. Quadro de outra
+    // organização não aparece na lista, e insistir nele deixaria a tela vazia.
+    if (boardIdDaUrl && boardIdDaUrl !== activeBoardId && boards.some(b => b.id === boardIdDaUrl)) {
+      setActiveBoardId(boardIdDaUrl);
     }
-  }, [searchParams, selectedDealId, router]);
+
+    if (dealIdDaUrl && !selectedDealId) {
+      setSelectedDealId(dealIdDaUrl);
+    }
+
+    // Limpa os dois da URL só depois de usados, para o endereço não ficar
+    // carregando estado antigo se a pessoa recarregar a página.
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('deal');
+    params.delete('board');
+    router.replace(params.toString() ? `?${params.toString()}` : '?', { scroll: false });
+  }, [searchParams, selectedDealId, router, boards, boardsFetched, activeBoardId, setActiveBoardId]);
 
   // Fallback for drag issues
   const lastMouseDownDealId = React.useRef<string | null>(null);
