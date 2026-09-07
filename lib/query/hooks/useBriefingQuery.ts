@@ -14,12 +14,42 @@ import type { BriefingResponse } from '@/lib/ai/briefing/schemas';
 // API Functions
 // =============================================================================
 
-async function fetchBriefing(dealId: string): Promise<BriefingResponse> {
+/**
+ * O que a rota devolve agora.
+ *
+ * `existe: false` é estado normal e não erro: o briefing só passa a existir
+ * quando alguém pede. `desatualizado` diz que o negócio andou depois de ele ter
+ * sido feito, o que a tela mostra em vez de apresentar texto velho como atual.
+ */
+export interface BriefingGuardado {
+  existe: boolean;
+  conteudo?: BriefingResponse;
+  geradoEm?: string;
+  geradoPor?: string;
+  baseEm?: string;
+  desatualizado?: boolean;
+  mexidoEm?: string | null;
+}
+
+/** Leitura: não gasta IA, não espera. */
+async function lerBriefing(dealId: string): Promise<BriefingGuardado> {
   const response = await fetch(`/api/ai/briefing/${dealId}`);
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to fetch briefing');
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Não consegui ler o briefing');
+  }
+
+  return response.json();
+}
+
+/** Geração: gasta IA, então é sempre POST e sempre deliberada. */
+async function gerarBriefing(dealId: string): Promise<BriefingGuardado> {
+  const response = await fetch(`/api/ai/briefing/${dealId}`, { method: 'POST' });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Não consegui gerar o briefing');
   }
 
   return response.json();
@@ -45,12 +75,15 @@ export function useBriefingQuery(
 ) {
   return useQuery({
     queryKey: queryKeys.ai.briefing(dealId!),
-    queryFn: () => fetchBriefing(dealId!),
+    queryFn: () => lerBriefing(dealId!),
     enabled: options?.enabled !== false && !!dealId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 30 * 60 * 1000, // 30 minutes (formerly cacheTime)
-    retry: 1, // Only retry once since this is an expensive operation
-    refetchOnWindowFocus: false, // Don't refetch on window focus
+    // Leitura ficou barata (não chama IA), então pode ser mais fresca: o
+    // briefing pode ter sido gerado pela rotina da madrugada ou por outra
+    // pessoa do time enquanto esta tela estava aberta.
+    staleTime: 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -66,7 +99,7 @@ export function useGenerateBriefing() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: fetchBriefing,
+    mutationFn: gerarBriefing,
     onSuccess: (data, dealId) => {
       // Cache the generated briefing
       queryClient.setQueryData(queryKeys.ai.briefing(dealId), data);

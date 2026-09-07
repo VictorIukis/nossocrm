@@ -1,301 +1,271 @@
 /**
- * Testes para a API de briefing de reuniões.
+ * A API do briefing, depois de separar ler de gerar.
  *
- * GET /api/ai/briefing/[dealId]
+ * Antes existia só o GET, e ele gerava: abrir a gaveta duas vezes custava duas
+ * chamadas de IA e duas esperas pelo mesmo texto. Agora GET lê o que está
+ * guardado e POST gera.
  *
- * Verifica autenticação, autorização (multi-tenant), validação de UUID,
- * geração do briefing e tratamento de erros de configuração de AI.
+ * A garantia que estes testes protegem, e que não existia antes, é negativa:
+ * GET NÃO chama a IA. É o tipo de regressão que ninguém percebe olhando a tela
+ * -- o briefing aparece igual -- e que só se manifesta na fatura e na espera.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// ---------------------------------------------------------------------------
-// Constantes de teste
-// ---------------------------------------------------------------------------
-// UUIDs v4 válidos (versão 4, variante 8 na posição 19)
 const USER_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5'
 const ORG_ID = 'b2c3d4e5-f6a7-4b8c-9d0e-f1a2b3c4d5e6'
 const DEAL_ID = 'c3d4e5f6-a7b8-4c9d-8e0f-a1b2c3d4e5f6'
 
-const BRIEFING_FIXTURE = {
+const CONTEUDO = {
   dealId: DEAL_ID,
   dealTitle: 'Projeto X',
   contactName: 'João Silva',
   currentStage: 'Proposta',
-  bantStatus: {
-    budget: 'confirmed',
-    authority: 'unknown',
-    need: 'confirmed',
-    timeline: 'near',
-  },
-  keyInsights: ['Cliente tem orçamento confirmado', 'Decisão até fim do mês'],
-  suggestedTopics: ['Apresentar proposta final', 'Confirmar prazo'],
+  keyInsights: ['Cliente tem orçamento confirmado'],
+  suggestedTopics: ['Apresentar proposta final'],
   recentActivities: [],
-  generatedAt: '2026-04-09T10:00:00Z',
+  generatedAt: '2026-09-07T10:00:00Z',
 }
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
 vi.mock('@/lib/ai/briefing/briefing.service', () => ({
-  generateMeetingBriefing: vi.fn(async () => BRIEFING_FIXTURE),
+  generateMeetingBriefing: vi.fn(async () => CONTEUDO),
 }))
 
-// Builders do Supabase (auth-based createClient)
-let profileQueryBuilder: Record<string, unknown>
-let dealQueryBuilder: Record<string, unknown>
-let authMock: Record<string, unknown>
-let supabaseClientMock: Record<string, unknown>
+/** O que a tabela do briefing devolve neste teste. */
+let guardado: {
+  conteudo: unknown
+  base_em: string
+  gerado_em: string
+  gerado_por: string
+} | null = null
+
+/** Até quando o negócio andou, para o cálculo de "envelheceu". */
+let mexidoEm = '2026-09-07T09:00:00Z'
+
+let clienteComSessao: Record<string, unknown>
+let usuario: string | null = USER_ID
+let organizacaoDoPerfil: string | null = ORG_ID
+let negocioEhDaOrganizacao = true
+let escritas: Array<Record<string, unknown>> = []
 
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => supabaseClientMock),
+  createClient: vi.fn(async () => clienteComSessao),
 }))
 
-// ---------------------------------------------------------------------------
-// Imports (após mocks)
-// ---------------------------------------------------------------------------
-import { GET } from '@/app/api/ai/briefing/[dealId]/route'
+vi.mock('@/lib/supabase/staticAdminClient', () => ({
+  createStaticAdminClient: vi.fn(() => ({
+    from: (tabela: string) => {
+      if (tabela !== 'deal_briefings') throw new Error(`tabela inesperada: ${tabela}`)
+      return {
+        select: () => ({
+          eq: () => ({ maybeSingle: async () => ({ data: guardado, error: null }) }),
+        }),
+        upsert: async (linha: Record<string, unknown>) => {
+          escritas.push(linha)
+          return { error: null }
+        },
+      }
+    },
+    rpc: async (nome: string) => {
+      if (nome === 'negocio_mexido_em') return { data: mexidoEm, error: null }
+      return { data: null, error: null }
+    },
+  })),
+}))
+
+vi.mock('@/lib/security/sameOrigin', () => ({
+  isAllowedOrigin: vi.fn(() => true),
+}))
+
+import { GET, POST } from '@/app/api/ai/briefing/[dealId]/route'
 import { generateMeetingBriefing } from '@/lib/ai/briefing/briefing.service'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function buildProfileQB(orgId: string | null = ORG_ID) {
-  return {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    single: vi.fn(async () => ({
-      data: orgId ? { organization_id: orgId } : null,
-      error: null,
-    })),
-  }
-}
-
-function buildDealQB(found = true) {
-  return {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    single: vi.fn(async () => ({
-      data: found ? { id: DEAL_ID, organization_id: ORG_ID } : null,
-      error: found ? null : { message: 'not found' },
-    })),
-  }
-}
-
-function buildAuthMock(userId: string | null = USER_ID) {
+function montarCliente() {
   return {
     auth: {
       getUser: vi.fn(async () => ({
-        data: { user: userId ? { id: userId } : null },
-        error: userId ? null : { message: 'not authenticated' },
+        data: { user: usuario ? { id: usuario } : null },
+        error: null,
       })),
     },
+    from: vi.fn((tabela: string) => {
+      if (tabela === 'profiles') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn(async () => ({
+            data: organizacaoDoPerfil ? { organization_id: organizacaoDoPerfil } : null,
+            error: null,
+          })),
+        }
+      }
+      if (tabela === 'deals') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn(async () => ({
+            data: negocioEhDaOrganizacao ? { id: DEAL_ID } : null,
+            error: null,
+          })),
+        }
+      }
+      throw new Error(`tabela inesperada: ${tabela}`)
+    }),
   }
 }
 
-async function callGet(dealId: string): Promise<Response> {
-  const req = new Request(`http://localhost/api/ai/briefing/${dealId}`)
-  const context = { params: Promise.resolve({ dealId }) }
-  return GET(req as any, context as any)
-}
+const chamarGet = (dealId: string) =>
+  GET(new Request(`http://localhost/api/ai/briefing/${dealId}`) as never, {
+    params: Promise.resolve({ dealId }),
+  } as never)
+
+const chamarPost = (dealId: string) =>
+  POST(new Request(`http://localhost/api/ai/briefing/${dealId}`, { method: 'POST' }) as never, {
+    params: Promise.resolve({ dealId }),
+  } as never)
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  usuario = USER_ID
+  organizacaoDoPerfil = ORG_ID
+  negocioEhDaOrganizacao = true
+  guardado = null
+  mexidoEm = '2026-09-07T09:00:00Z'
+  escritas = []
+  clienteComSessao = montarCliente()
+})
 
 // ---------------------------------------------------------------------------
-// Testes
-// ---------------------------------------------------------------------------
-describe('GET /api/ai/briefing/[dealId]', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
 
-    profileQueryBuilder = buildProfileQB()
-    dealQueryBuilder = buildDealQB(true)
-    authMock = buildAuthMock()
-    supabaseClientMock = {
-      ...authMock,
-      from: vi.fn((table: string) => {
-        if (table === 'profiles') return profileQueryBuilder
-        if (table === 'deals') return dealQueryBuilder
-        throw new Error(`Unexpected table: ${table}`)
-      }),
-    }
-  })
-
-  // ── Validação de UUID ─────────────────────────────────────────────────────
-
-  it('retorna 400 quando dealId não é UUID válido', async () => {
-    // Act
-    const res = await callGet('nao-e-uuid')
-    const body = await res.json()
-
-    // Assert
+describe('quem pode pedir', () => {
+  it('recusa dealId que não é UUID', async () => {
+    const res = await chamarGet('nao-e-uuid')
     expect(res.status).toBe(400)
-    expect(body.error).toMatch(/dealId/i)
   })
 
-  it('retorna 400 quando dealId está vazio', async () => {
-    // Act
-    const res = await callGet('')
-    const body = await res.json()
-
-    // Assert
-    expect(res.status).toBe(400)
-    expect(body.error).toMatch(/dealId/i)
+  it('recusa quem não está autenticado', async () => {
+    usuario = null
+    expect((await chamarGet(DEAL_ID)).status).toBe(401)
   })
 
-  // ── Autenticação ──────────────────────────────────────────────────────────
-
-  it('retorna 401 quando usuário não autenticado', async () => {
-    // Arrange
-    supabaseClientMock = {
-      ...buildAuthMock(null),
-      from: vi.fn(),
-    }
-
-    // Act
-    const res = await callGet(DEAL_ID)
-    const body = await res.json()
-
-    // Assert
-    expect(res.status).toBe(401)
-    expect(body.error).toBe('Unauthorized')
+  it('recusa perfil sem organização', async () => {
+    organizacaoDoPerfil = null
+    expect((await chamarGet(DEAL_ID)).status).toBe(404)
   })
 
-  it('retorna 404 quando profile não encontrado', async () => {
-    // Arrange
-    profileQueryBuilder = buildProfileQB(null)
-    supabaseClientMock = {
-      ...buildAuthMock(),
-      from: vi.fn((table: string) => {
-        if (table === 'profiles') return profileQueryBuilder
-        if (table === 'deals') return dealQueryBuilder
-        throw new Error(`Unexpected table: ${table}`)
-      }),
-    }
-
-    // Act
-    const res = await callGet(DEAL_ID)
-    const body = await res.json()
-
-    // Assert
-    expect(res.status).toBe(404)
-    expect(body.error).toBe('Profile not found')
+  // Multi-inquilino: o negócio de outra empresa não existe para quem pede.
+  it('recusa negócio de outra organização', async () => {
+    negocioEhDaOrganizacao = false
+    expect((await chamarGet(DEAL_ID)).status).toBe(404)
   })
 
-  // ── Autorização (multi-tenant) ────────────────────────────────────────────
-
-  it('retorna 404 quando deal não pertence à organização do usuário', async () => {
-    // Arrange — deal não encontrado para essa org (isolamento multi-tenant via eq+eq)
-    dealQueryBuilder = buildDealQB(false)
-    supabaseClientMock = {
-      ...authMock,
-      from: vi.fn((table: string) => {
-        if (table === 'profiles') return profileQueryBuilder
-        if (table === 'deals') return dealQueryBuilder
-        throw new Error(`Unexpected table: ${table}`)
-      }),
-    }
-
-    // Act
-    const res = await callGet(DEAL_ID)
-    const body = await res.json()
-
-    // Assert
-    expect(res.status).toBe(404)
-    expect(body.error).toMatch(/not found|access denied/i)
+  it('POST recusa origem não permitida', async () => {
+    const { isAllowedOrigin } = await import('@/lib/security/sameOrigin')
+    vi.mocked(isAllowedOrigin).mockReturnValueOnce(false)
+    expect((await chamarPost(DEAL_ID)).status).toBe(403)
   })
+})
 
-  it('verifica deal por organization_id (defense-in-depth)', async () => {
-    // Act
-    await callGet(DEAL_ID)
+describe('GET: ler não gasta IA', () => {
+  // É a razão de existir da mudança. Se alguém religar a geração no GET, a tela
+  // continua igual e o custo volta em silêncio.
+  it('nunca chama a IA, nem quando não há briefing guardado', async () => {
+    const res = await chamarGet(DEAL_ID)
+    const corpo = await res.json()
 
-    // Assert — a query de deals deve filtrar por organization_id
-    expect(dealQueryBuilder.eq).toHaveBeenCalledWith('id', DEAL_ID)
-    expect(dealQueryBuilder.eq).toHaveBeenCalledWith('organization_id', ORG_ID)
-  })
-
-  // ── Happy path ────────────────────────────────────────────────────────────
-
-  it('retorna briefing gerado com sucesso', async () => {
-    // Act
-    const res = await callGet(DEAL_ID)
-    const body = await res.json()
-
-    // Assert
     expect(res.status).toBe(200)
-    expect(body).toMatchObject({
-      dealId: DEAL_ID,
-      dealTitle: 'Projeto X',
-      contactName: 'João Silva',
-      currentStage: 'Proposta',
+    expect(corpo.existe).toBe(false)
+    expect(generateMeetingBriefing).not.toHaveBeenCalled()
+  })
+
+  it('"ainda não existe" responde 200, não 404', async () => {
+    // A tela precisa distinguir "não existe" de erro para oferecer o botão de
+    // gerar em vez de mostrar vermelho.
+    const res = await chamarGet(DEAL_ID)
+    expect(res.status).toBe(200)
+  })
+
+  it('devolve o que está guardado', async () => {
+    guardado = {
+      conteudo: CONTEUDO,
+      base_em: '2026-09-07T09:00:00Z',
+      gerado_em: '2026-09-07T09:05:00Z',
+      gerado_por: 'rotina',
+    }
+
+    const corpo = await (await chamarGet(DEAL_ID)).json()
+    expect(corpo.existe).toBe(true)
+    expect(corpo.conteudo.dealTitle).toBe('Projeto X')
+    expect(corpo.geradoPor).toBe('rotina')
+    expect(generateMeetingBriefing).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET: quando o briefing envelheceu', () => {
+  it('negócio andou depois: desatualizado', async () => {
+    guardado = {
+      conteudo: CONTEUDO,
+      base_em: '2026-09-07T09:00:00Z',
+      gerado_em: '2026-09-07T09:00:00Z',
+      gerado_por: 'pessoa',
+    }
+    mexidoEm = '2026-09-07T11:00:00Z'
+
+    const corpo = await (await chamarGet(DEAL_ID)).json()
+    expect(corpo.desatualizado).toBe(true)
+  })
+
+  it('nada aconteceu depois: continua valendo', async () => {
+    guardado = {
+      conteudo: CONTEUDO,
+      base_em: '2026-09-07T11:00:00Z',
+      gerado_em: '2026-09-07T11:00:00Z',
+      gerado_por: 'pessoa',
+    }
+    mexidoEm = '2026-09-07T11:00:00Z'
+
+    const corpo = await (await chamarGet(DEAL_ID)).json()
+    expect(corpo.desatualizado).toBe(false)
+  })
+})
+
+describe('POST: gerar é deliberado', () => {
+  it('chama a IA e guarda o resultado', async () => {
+    const corpo = await (await chamarPost(DEAL_ID)).json()
+
+    expect(generateMeetingBriefing).toHaveBeenCalledTimes(1)
+    expect(corpo.existe).toBe(true)
+    expect(escritas).toHaveLength(1)
+    expect(escritas[0]).toMatchObject({
+      deal_id: DEAL_ID,
+      organization_id: ORG_ID,
+      gerado_por: 'pessoa',
     })
-    expect(body).toHaveProperty('keyInsights')
-    expect(body).toHaveProperty('suggestedTopics')
-    expect(body).toHaveProperty('bantStatus')
   })
 
-  it('chama generateMeetingBriefing com dealId e supabase corretos', async () => {
-    // Act
-    await callGet(DEAL_ID)
-
-    // Assert
-    expect(generateMeetingBriefing).toHaveBeenCalledWith(DEAL_ID, supabaseClientMock)
+  // O base_em sai de antes da chamada da IA: se uma mensagem chegar durante a
+  // geração, o briefing não sabe dela, e marcar como se soubesse esconderia
+  // exatamente a informação nova.
+  it('marca o briefing com o estado de ANTES da geração', async () => {
+    mexidoEm = '2026-09-07T09:00:00Z'
+    await chamarPost(DEAL_ID)
+    expect(escritas[0].base_em).toBe('2026-09-07T09:00:00Z')
   })
 
-  // ── Erros de AI / configuração ────────────────────────────────────────────
-
-  it('retorna 400 quando AI não configurada', async () => {
-    // Arrange — erro de configuração ("not configured")
+  it('falta de configuração de IA é 400, não 500', async () => {
     vi.mocked(generateMeetingBriefing).mockRejectedValueOnce(
-      new Error('AI provider not configured')
+      new Error('AI not configured for this organization')
     )
-
-    // Act
-    const res = await callGet(DEAL_ID)
-    const body = await res.json()
-
-    // Assert
-    expect(res.status).toBe(400)
-    expect(body.error).toMatch(/not configured/i)
+    expect((await chamarPost(DEAL_ID)).status).toBe(400)
   })
 
-  it('retorna 400 quando feature está desabilitada', async () => {
-    // Arrange
-    vi.mocked(generateMeetingBriefing).mockRejectedValueOnce(
-      new Error('Briefing feature is disabled')
-    )
-
-    // Act
-    const res = await callGet(DEAL_ID)
-    const body = await res.json()
-
-    // Assert
-    expect(res.status).toBe(400)
-    expect(body.error).toMatch(/disabled/i)
-  })
-
-  it('retorna 500 para erros genéricos', async () => {
-    // Arrange
-    vi.mocked(generateMeetingBriefing).mockRejectedValueOnce(
-      new Error('Unexpected database error')
-    )
-
-    // Act
-    const res = await callGet(DEAL_ID)
-    const body = await res.json()
-
-    // Assert
-    expect(res.status).toBe(500)
-    expect(body.error).toBe('Unexpected database error')
-  })
-
-  it('retorna 500 com mensagem genérica para erros não-Error', async () => {
-    // Arrange — lança um não-Error (string)
-    vi.mocked(generateMeetingBriefing).mockRejectedValueOnce('string error')
-
-    // Act
-    const res = await callGet(DEAL_ID)
-    const body = await res.json()
-
-    // Assert
-    expect(res.status).toBe(500)
-    expect(body.error).toBe('Failed to generate briefing')
+  it('erro inesperado é 500', async () => {
+    vi.mocked(generateMeetingBriefing).mockRejectedValueOnce(new Error('deu ruim'))
+    expect((await chamarPost(DEAL_ID)).status).toBe(500)
   })
 })

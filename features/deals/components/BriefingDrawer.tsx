@@ -127,6 +127,67 @@ function BriefingEmpty({ onGenerate }: { onGenerate: () => void }) {
   );
 }
 
+/**
+ * Idade do briefing, e o convite para regerar quando ele ficou para trás.
+ *
+ * Fica acima do conteúdo de propósito: quem abre a gaveta antes de uma reunião
+ * lê de cima para baixo, e a informação "isto não sabe da conversa de ontem"
+ * precisa chegar antes do texto, não depois.
+ */
+function FaixaDeIdade({
+  geradoEm,
+  geradoPor,
+  desatualizado,
+  aoRegerar,
+  gerando,
+}: {
+  geradoEm?: string;
+  geradoPor?: string;
+  desatualizado: boolean;
+  aoRegerar: () => void;
+  gerando: boolean;
+}) {
+  const quando = geradoEm
+    ? new Date(geradoEm).toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+      })
+    : null;
+
+  const porQuem = geradoPor === 'rotina' ? 'adiantado de madrugada' : null;
+
+  return (
+    <div
+      className={`mb-4 rounded-lg px-3 py-2.5 text-xs flex items-start gap-2 ${
+        desatualizado
+          ? 'bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300'
+          : 'bg-slate-50 text-slate-500 dark:bg-white/5 dark:text-slate-400'
+      }`}
+    >
+      <span className="flex-1">
+        {desatualizado ? (
+          <>
+            <strong>Este briefing ficou para trás.</strong> O negócio andou depois de ele ser
+            feito{quando ? `, em ${quando}` : ''}: houve conversa, tarefa ou mudança de etapa que
+            ele não conhece.
+          </>
+        ) : (
+          <>Feito em {quando}{porQuem ? `, ${porQuem}` : ''}.</>
+        )}
+      </span>
+
+      {desatualizado && (
+        <button
+          onClick={aoRegerar}
+          disabled={gerando}
+          className="shrink-0 font-semibold underline hover:no-underline disabled:opacity-60"
+        >
+          {gerando ? 'Refazendo…' : 'Refazer'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function BriefingDrawer({
   dealId,
   dealTitle,
@@ -140,7 +201,6 @@ export function BriefingDrawer({
     data: briefing,
     isLoading,
     error,
-    refetch,
   } = useBriefingQuery(isOpen ? dealId : null);
 
   // Mutation for generating/refreshing
@@ -148,10 +208,6 @@ export function BriefingDrawer({
 
   const handleGenerate = () => {
     generate(dealId);
-  };
-
-  const handleRefresh = () => {
-    refetch();
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -227,12 +283,25 @@ export function BriefingDrawer({
                     error={error instanceof Error ? error.message : 'Erro desconhecido'}
                     onRetry={handleGenerate}
                   />
-                ) : briefing ? (
-                  <BriefingCard
-                    briefing={briefing}
-                    onRefresh={handleRefresh}
-                    isRefreshing={isLoading}
-                  />
+                ) : briefing?.existe && briefing.conteudo ? (
+                  <>
+                    {/* Quando o negócio andou depois do briefing, a tela diz.
+                        Guardar um briefing e apresentá-lo como atual seria pior
+                        do que não guardar: alguém entra na reunião confiando
+                        num resumo que não sabe da conversa de ontem. */}
+                    <FaixaDeIdade
+                      geradoEm={briefing.geradoEm}
+                      geradoPor={briefing.geradoPor}
+                      desatualizado={Boolean(briefing.desatualizado)}
+                      aoRegerar={handleGenerate}
+                      gerando={isGenerating}
+                    />
+                    <BriefingCard
+                      briefing={briefing.conteudo}
+                      onRefresh={handleGenerate}
+                      isRefreshing={isGenerating}
+                    />
+                  </>
                 ) : (
                   <BriefingEmpty onGenerate={handleGenerate} />
                 )}

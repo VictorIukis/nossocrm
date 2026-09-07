@@ -279,7 +279,16 @@ describe('Story — US-AI-005: Meeting Prep Briefing', () => {
 
     it('renders briefing content when loaded', async () => {
       mockBriefingQuery.mockReturnValue({
-        data: mockBriefing,
+        // O envelope novo: além do conteúdo, a gaveta precisa saber quando foi
+        // feito e se o negócio andou depois.
+        data: {
+          existe: true,
+          conteudo: mockBriefing,
+          geradoEm: '2026-09-07T10:00:00Z',
+          geradoPor: 'pessoa',
+          baseEm: '2026-09-07T10:00:00Z',
+          desatualizado: false,
+        },
         isLoading: false,
         error: null,
         refetch: vi.fn(),
@@ -326,7 +335,16 @@ describe('Story — US-AI-005: Meeting Prep Briefing', () => {
     it('calls onClose when close button clicked', async () => {
       const onClose = vi.fn();
       mockBriefingQuery.mockReturnValue({
-        data: mockBriefing,
+        // O envelope novo: além do conteúdo, a gaveta precisa saber quando foi
+        // feito e se o negócio andou depois.
+        data: {
+          existe: true,
+          conteudo: mockBriefing,
+          geradoEm: '2026-09-07T10:00:00Z',
+          geradoPor: 'pessoa',
+          baseEm: '2026-09-07T10:00:00Z',
+          desatualizado: false,
+        },
         isLoading: false,
         error: null,
         refetch: vi.fn(),
@@ -360,7 +378,16 @@ describe('Story — US-AI-005: Meeting Prep Briefing', () => {
 
     it('displays deal title in header', () => {
       mockBriefingQuery.mockReturnValue({
-        data: mockBriefing,
+        // O envelope novo: além do conteúdo, a gaveta precisa saber quando foi
+        // feito e se o negócio andou depois.
+        data: {
+          existe: true,
+          conteudo: mockBriefing,
+          geradoEm: '2026-09-07T10:00:00Z',
+          geradoPor: 'pessoa',
+          baseEm: '2026-09-07T10:00:00Z',
+          desatualizado: false,
+        },
         isLoading: false,
         error: null,
         refetch: vi.fn(),

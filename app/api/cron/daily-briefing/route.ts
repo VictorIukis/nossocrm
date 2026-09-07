@@ -1,5 +1,5 @@
 import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
-import { generateMeetingBriefing } from '@/lib/ai/briefing/briefing.service';
+import { gerarEGuardar, lerGuardado } from '@/lib/ai/briefing/guardado';
 
 export const maxDuration = 120;
 
@@ -13,18 +13,16 @@ function json<T>(body: T, status = 200): Response {
 /**
  * GET /api/cron/daily-briefing
  *
- * DESAGENDADA de propósito (saiu de vercel.json em 03/set/2026).
+ * Adianta o briefing das reuniões de hoje e amanhã, para a gaveta abrir pronta
+ * em vez de fazer a pessoa esperar pela IA no minuto antes da conversa.
  *
- * A ideia era adiantar o briefing das reuniões do dia. Só que
- * `generateMeetingBriefing` devolve o briefing e não guarda: o único cache é o
- * do navegador, por 5 minutos, na sessão de quem abriu a gaveta. Rodando às 8h,
- * ela gastava IA para jogar o resultado fora -- ninguém tinha como ler aquilo.
- * Rodei em produção antes de decidir: respondeu 200 e "processed: 2", e não
- * sobrou nada no banco.
+ * Ela ficou desagendada de 03 a 07/set porque `generateMeetingBriefing`
+ * devolvia o briefing sem guardar: gastava IA para jogar o resultado fora.
+ * Agora existe `deal_briefings`, então adiantar de fato adianta.
  *
- * A rota continua aqui, funcionando, porque a rotina passa a valer no dia em
- * que o briefing for guardado (tabela própria + a gaveta lendo de lá). Aí ela
- * volta para o agendamento e a gaveta abre pronta em dia de reunião.
+ * Só gera o que falta ou envelheceu. Reunião cujo briefing já está em dia não
+ * paga IA de novo -- sem isso, uma reunião remarcada três vezes geraria três
+ * briefings idênticos.
  *
  * Scheduled cron job (weekdays at 08:00 UTC) that pre-generates meeting briefings
  * for all deals with a meeting scheduled today or tomorrow.
@@ -95,21 +93,33 @@ export async function GET(req: Request) {
   let processed = 0;
   let errors = 0;
 
-  await Promise.allSettled(
-    uniqueDeals.map(async (activity) => {
-      try {
-        await generateMeetingBriefing(activity.deal_id, supabase);
-        processed++;
-      } catch (err) {
-        errors++;
-        console.error(
-          `[Cron:daily-briefing] Failed for deal ${activity.deal_id}:`,
-          err instanceof Error ? err.message : err
-        );
-      }
-    })
-  );
+  let pulados = 0;
 
-  console.log(`[Cron:daily-briefing] Done — processed: ${processed}, errors: ${errors}`);
-  return json({ processed, errors });
+  // Em série, e não em paralelo, de propósito: são chamadas de IA, e disparar
+  // dez ao mesmo tempo é o caminho mais rápido para bater no limite do provedor
+  // e falhar em todas. Aqui ninguém está esperando na frente da tela.
+  for (const activity of uniqueDeals) {
+    try {
+      const guardado = await lerGuardado(supabase, activity.deal_id);
+
+      if (guardado && !guardado.desatualizado) {
+        pulados++;
+        continue;
+      }
+
+      await gerarEGuardar(supabase, activity.deal_id, activity.organization_id, 'rotina');
+      processed++;
+    } catch (err) {
+      errors++;
+      console.error(
+        `[Cron:daily-briefing] falhou no negócio ${activity.deal_id}:`,
+        err instanceof Error ? err.message : err
+      );
+    }
+  }
+
+  console.log(
+    `[Cron:daily-briefing] feito — gerados: ${processed}, já em dia: ${pulados}, falhas: ${errors}`
+  );
+  return json({ processed, pulados, errors });
 }
