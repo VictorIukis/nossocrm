@@ -131,8 +131,15 @@ describe('primeiro nome', () => {
 });
 
 describe('respostas viram contexto legível', () => {
-  it('tira o cf_ e o underline', () => {
+  it('tira o cf_, troca underline por espaço e começa com maiúscula', () => {
     expect(respostasEmTexto({ cf_faturamento_mensal: 'R$ 100 mil' }))
-      .toBe('faturamento mensal: R$ 100 mil');
+      .toBe('Faturamento mensal: R$ 100 mil');
+  });
+
+  // Acento não é inventado: o nome vem do campo criado no RD, e é assim que
+  // ele foi cadastrado lá. Chutar "dúvida" daria certo hoje e erraria no dia
+  // em que alguém criar um campo com outro nome.
+  it('não inventa acento que o RD não mandou', () => {
+    expect(respostasEmTexto({ cf_duvida_trafego: 'x' })).toBe('Duvida trafego: x');
   });
 });

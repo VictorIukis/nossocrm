@@ -206,7 +206,10 @@ export function respostasEmTexto(respostas: Record<string, string>): string {
         .replace(/^cf_/, '')
         .replace(/[_-]+/g, ' ')
         .trim();
-      return `${rotulo}: ${v}`;
+      // Primeira letra maiúscula. Acento não dá para inventar: o nome vem do
+      // campo criado no RD, e "duvida trafego" é como ele foi cadastrado lá.
+      const legivel = rotulo.charAt(0).toUpperCase() + rotulo.slice(1);
+      return `${legivel}: ${v}`;
     })
     .join('\n');
 }

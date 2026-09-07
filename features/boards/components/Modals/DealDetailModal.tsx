@@ -951,10 +951,19 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                       </div>
                     </div>
 
+                    {/* As duas listas precisam de nome. Sem isso, "nenhuma
+                        atividade registrada" aparecia logo acima de um
+                        histórico cheio, e quem lê não sabia que são coisas
+                        diferentes: uma é compromisso futuro, a outra é fato. */}
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-slate-400
+                      dark:text-slate-500 mb-3">
+                      O que falta fazer
+                    </h3>
+
                     <div className="space-y-3 pl-4 border-l border-slate-200 dark:border-slate-800">
                       {dealActivities.length === 0 && (
                         <p className="text-sm text-slate-500 italic pl-4">
-                          Nenhuma atividade registrada.
+                          Nenhuma tarefa ou compromisso agendado.
                         </p>
                       )}
                       {dealActivities.map(activity => (
